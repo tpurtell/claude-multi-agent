@@ -148,9 +148,11 @@ instance. Stop usage, back up current state, and record project/image/port.
 2. With the scoped Compose command above, start only DB (`up -d --wait db`).
    Restore the exact dump: `exec -T db pg_restore -U litellm -d litellm --clean
    --if-exists --no-owner < /exact/trusted/backup/database.dump`.
-3. Start workers (`up -d chatgpt1 chatgpt2`, or only chatgpt1). Inspect trusted
-   auth archives first; reject absolute paths, .., symlinks or unexpected files.
-   Extract only to the selected worker: `exec -T chatgptN tar -xzf - -C
+3. Inspect trusted auth archives first; reject absolute paths, .., symlinks or
+   unexpected files. Restore before starting authenticated workers, otherwise
+   an empty store can trigger an eager device login. With the scoped Compose
+   command, use a one-off container for only the selected volume:
+   `run --rm --no-deps -T --entrypoint tar chatgptN -xzf - -C
    /app/chatgpt-auth < /exact/trusted/backup/chatgptN-auth.tar.gz`.
 4. cma up, cma check, then authorized smoke tests. Provider refresh-token
    invalidation can still require reauthorization.
