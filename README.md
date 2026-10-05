@@ -1,3 +1,5 @@
+![Claude Multi-Agent Transplant Unit](docs/assets/architecture-transplant.jpg)
+
 # Hybrid Agents for Claude
 
 A Claude-first plugin and utility package for using Claude Code as a coordinator
