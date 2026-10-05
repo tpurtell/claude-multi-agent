@@ -1,0 +1,10 @@
+{
+  "name": "tpurtell-agent-tools",
+  "owner": {"name": "tpurtell"},
+  "plugins": [{
+    "name": "claude-multi-agent",
+    "source": "./",
+    "description": "Multi-model Claude orchestration and localhost gateway utilities",
+    "version": "0.1.0"
+  }]
+}

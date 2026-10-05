@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+!.env.example
+state/
+backups/
+*.log
+*.dump
+*auth.json
+*credentials.json
+*-key.json
+*.pem
+.DS_Store

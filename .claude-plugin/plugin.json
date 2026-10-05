@@ -1,0 +1,9 @@
+{
+  "name": "claude-multi-agent",
+  "version": "0.1.0",
+  "description": "Claude-first multi-model orchestration, isolated localhost LiteLLM setup, account launchers and direct Codex recovery.",
+  "author": {"name": "tpurtell"},
+  "homepage": "https://github.com/tpurtell/claude-multi-agent",
+  "repository": "https://github.com/tpurtell/claude-multi-agent",
+  "license": "MIT"
+}
