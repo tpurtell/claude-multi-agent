@@ -5,6 +5,8 @@ of Claude, Codex, DeepSeek and optional MiMo workers. Includes client patches,
 a separate localhost Docker LiteLLM gateway, multi-account launchers, direct
 Codex recovery, skills and an operations runbook.
 
+[Architecture posters: command center and pig-kidney transplant unit](docs/assets/README.md).
+
 **Give this repository to Claude and ask it to follow the installation contract
 below.** It can finish preparation, deployment and validation autonomously.
 Browser/device logins require the owner. Do not paste tokens or API keys into chat.

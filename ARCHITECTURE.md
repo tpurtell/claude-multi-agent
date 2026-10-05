@@ -1,5 +1,7 @@
 # Architecture
 
+Prefer diagrams with personality? See the [command center and transplant unit](docs/assets/README.md).
+
 Private state is outside Git. The proxy binds only 127.0.0.1; workers/PostgreSQL
 stay on its private Compose network. Project/volume names are instance-specific.
 

@@ -1,0 +1,38 @@
+Use case: infographic-diagram.
+Asset type: hilarious illustrated architecture poster for "Hybrid Agents for Claude".
+Primary request: a surgery-themed technical diagram, using a life-saving pig-kidney transplant as the metaphor for grafting Codex and other model capabilities into Claude Code. Make it genuinely funny but readable and faithful to the system. Cartoon, non-graphic surgery only: no blood, no exposed flesh, no photorealistic organs. Show a simplified pink kidney in a clean surgical inset.
+Style: witty elaborate editorial cartoon, charming expressive humanlike robot patient and adorable cartoon pigs, crisp ink outlines, mint-green operating theatre, warm cream diagram backdrop, pink accents, clearly separated panels and thick routed arrows. Landscape 3:2, high resolution, polished very legible English typography, no vendor logos or watermarks.
+
+Header verbatim: "CLAUDE MULTI-AGENT TRANSPLANT UNIT"
+Subtitle verbatim: "We replaced vendor lock-in with a pig kidney."
+
+Left/center: a humanlike cartoon robot patient labeled "Claude Code" on an operating table, awake and mildly alarmed. A head surgeon robot labeled "Claude coordinator" is holding a project brief, with speech bubble "We're keeping the personality. Upgrading the kidneys."
+Small skill/hook scrub nurses with clipboards labeled "Skills + hooks"; one asks "Did you read the brief?"
+An anatomical-style circular surgical inset shows a tiny simplified kidney made of patch tape labeled "Isolated client patch" and "Agent.model + effort", with a little label "Multi-model graft". This is a metaphorical pig-kidney transplant into the COPY of the client, not a change to its real installed original.
+Consent form prominently says "OPERATING ON A COPY".
+Beside the table an untouched smiling patient twin in a protective glass box labeled "Original binary untouched". This technical boundary is important.
+A tiny opt-in button on the surgical console labeled "YOLO (opt-in)", with a caption "Consent form: signed."
+
+Main real request-flow arrow from the enhanced Claude patient/coordinator to a medical machine labeled "LiteLLM / localhost" and "127.0.0.1:4000", styled as a hilariously over-engineered dialysis machine. Arrow label "Native OAuth + restricted gateway key". Show them as two distinct ID badges, never a single merged token. On the machine a little deadpan attendant says "I route organs. Not miracles."
+A database cylinder beneath/next to it labeled "PostgreSQL" and "Keys / usage / spend"; database is connected only to LiteLLM. It wears surgical gloves and says "That'll be on the bill."
+A pale boundary titled "Private Docker network" encloses only LiteLLM, PostgreSQL and two worker booths; no publicly exposed worker or database ports.
+
+Medical machine's outward routing:
+- Upper branch to an external cloud labelled "Anthropic" / "Native Claude models", arrow labelled "Native OAuth only here". This is the native human organ department. Friendly doctor says "Your original insurance still works."
+- Two completely independent branches through booths inside private network to external donor pens:
+  Booth 1 "chatgpt1" / "OAuth store 1" -> adorable pink pig labelled "Codex subscription 1" / "Sol 6.1 / Astra 6".
+  Booth 2 "chatgpt2" / "OAuth store 2" -> second adorable pink pig with fake glasses labelled "Codex subscription 2" / "Sol 6.1 / Astra 6 — backup".
+  Pigs have different passport booklets. First speech bubble "OinkAI." Second speech bubble "Same organs. Different passport."
+  A small sign between booths says "NO AUTOMATIC DONOR SWITCHING". NO connecting route between the two accounts. Worker OAuth stays separate from native Claude OAuth.
+- Lower branch to external hospital kiosk labeled "Optional paid APIs" with short labels "DeepSeek", "OpenRouter / MiMo", "EXA search". Arrow label "Separate API keys". A cheerful cashier pig says "Out-of-network organs cost extra." Do not route native Claude OAuth to this kiosk or Codex accounts.
+
+Bottom: dashed orange route from the coordinator going visibly around/below the dialysis machine to a rescue helicopter/paramedic robot labelled "Direct Codex CLI" / "Native subscription login". Route label "EMERGENCY EXIT: bypass LiteLLM". Paramedic speech bubble "If the transplant fails, take the stairs." This is manual recovery, NOT automatic failover.
+Footer verbatim: "Human logins required. No pigs were harmed. Several abstractions were."
+
+Technical constraints: only the enhanced cached client is patched, original installed binary remains intact; Agent.model and per-agent effort are the graft; separate native Claude auth and restricted gateway key; main LiteLLM routing and direct Codex bypass shown clearly; native OAuth only to Anthropic; two Codex account stores separate; optional paid providers use separate API keys. Keep metaphor fun without presenting literal medical guidance. Show clear arrowheads and readable labels. No extra random text, no gore, no secrets, no claims of automatic account failover.
+
+Targeted edit after visual inspection:
+Edit this exact existing cartoon surgery architecture poster. Preserve all characters, labels, jokes, typography, panels, composition, textures and colors. Correct only TWO routing arrow origins:
+1. The thick blue arrow labelled "Native OAuth only here" going to Anthropic currently appears to begin directly at the top of the enhanced-client card. Redraw that arrow so it unmistakably starts at the LiteLLM dialysis machine's RIGHT or UPPER-RIGHT edge and then travels upward and right to the existing Anthropic card. Do NOT create a direct client-to-Anthropic bypass. The enhanced client must still connect to LiteLLM with its main blue arrow and its two distinct credential badges.
+2. The purple "Separate API keys" route to the Optional paid APIs currently looks connected to the bottom of the chatgpt2 booth. Redraw it to unmistakably begin at the LiteLLM machine's LOWER-RIGHT edge, use a separated clean elbow path through whitespace below the worker booths, and end at the existing Optional paid APIs card. It must not touch either chatgpt booth or their green/blue account routes.
+Keep the dashed orange Direct Codex emergency route and every other arrow unchanged. Keep the existing private Docker boundary enclosing LiteLLM, PostgreSQL and both chatgpt worker booths. The two Codex account routes remain separate and independent; all cloud destination cards remain external. Absolutely no new jokes, objects or text; modify only those two arrow paths for technical clarity.

@@ -1,0 +1,37 @@
+Use case: infographic-diagram.
+Asset type: illustrated architecture poster for the public GitHub project "Hybrid Agents for Claude".
+Primary request: make a genuinely hilarious, technically accurate architecture diagram of a Claude multi-model agent coordinator. The comedy is an overqualified engineering command center held together by bureaucracy, isolated patches, and careful routing. It must still work as a readable diagram, not merely a funny scene.
+Style: exuberant editorial cartoon, confident ink outlines, expressive little robot characters, restrained cream paper backdrop, colorful well-separated component panels, polished typography, generous whitespace. Landscape 3:2 canvas, high resolution. Clear thick arrows; routing must be unambiguous. No vendor logos, no watermarks, no literal real API keys. Draw original cartoon characters representing software, not actual people.
+
+Header, verbatim: "HYBRID AGENTS FOR CLAUDE"
+Subtitle, verbatim: "Enterprise-grade delegation. Garage-grade vibes."
+
+Left third: "Claude Code" coordinator is a tiny exhausted robot wearing a captain hat, sitting at a desk piled with project briefs and review checklists. Speech bubble: "I have delegated the delegation."
+A little nearby taped-together toolbox labeled "Isolated client patch" has labels "Agent.model + effort" and "Original binary untouched"; show a pristine original executable preserved in a small glass case. The patch toolbox connects to the coordinator only.
+A friendly officious clipboard robot labeled "Skills + hooks" hands the coordinator instructions, with a short speech bubble "Have you read the brief?"
+The coordinator sends requests through one main arrow to the central gateway, with a small label "Native OAuth + restricted gateway key". Make clear these are separate credentials, not a single blended key.
+
+Center third: prominent gateway checkpoint labeled "LiteLLM / localhost" and "127.0.0.1:4000". Depict a tiny deadpan bouncer with a clipboard titled "MODEL ALLOWLIST". Speech bubble: "You are not on the list."
+Next to / below the gateway is a short database cylinder with calculator spectacles labeled "PostgreSQL" and "Keys / usage / spend"; the database connects only to the gateway. Database speech bubble: "I remember what you spent."
+A light boundary around gateway, database, and the two account worker booths should say "Private Docker network". No database or worker host ports. It is acceptable for destination cloud cards to sit outside this boundary.
+Nearby tiny posted policy sign, verbatim: "NO SILENT ACCOUNT SWITCHING".
+
+Right third / routing branches:
+1. Upper branch from LiteLLM to a cloud card labeled "Anthropic" / "Native Claude models". Arrow label "Native OAuth only here". Cartoon native Claude agent smugly wearing the same captain hat but no patch tape. Bubble: "Still me."
+2. Two separate middle branches from gateway through two distinct tiny passport booths inside the Docker boundary to one or two matching Codex destination cards outside:
+   Booth 1 labels "chatgpt1" / "OAuth store 1"
+   Booth 2 labels "chatgpt2" / "OAuth store 2"
+   Destination cards label "Codex subscription 1" and "Codex subscription 2" respectively.
+   Both cards list "Sol 6.1 / Astra 6"; second adds a clearly legible "-backup".
+   Visual gag: first has a hardworking wrench robot, second an identical wrench robot wearing fake glasses. The primary says "Same brain." The backup says "Different passport."
+   Do NOT draw an arrow between accounts or imply automatic failover. Their separate volumes/identities must be clear.
+3. Lower branch from gateway to a grouped optional cloud card labeled "Optional paid APIs", with three short labels "DeepSeek", "OpenRouter / MiMo", "EXA search". A tiny cashier collecting coins, speech bubble: "Subscriptions do not cover this." Arrow label "Separate API keys". Native Claude OAuth must never be drawn flowing into this group or into either Codex booth.
+
+Along the bottom, a bold dashed orange route originating at the coordinator, going around/below the entire LiteLLM checkpoint, to a parachuting robot at a card labeled "Direct Codex CLI" / "Native subscription login". Clearly label this separate route "EMERGENCY EXIT: bypass LiteLLM". Speech bubble: "When the proxy becomes the project." This is an explicitly invoked recovery path, not an automatic fallback route.
+Bottom corner: a small switch/helmet cartoon labeled "YOLO (opt-in)", short caption verbatim "No seatbelts. Still obey traffic laws."
+Footer, verbatim: "Human logins required. Magic not included."
+
+Constraints: preserve the real routing above. All key labels readable, English text accurate, no random filler text. The native Claude OAuth flows only to Anthropic; separate Codex OAuth stores and separate paid API keys are visibly distinct. Do not conflate plugin instructions with a deployed gateway. Make the visual jokes land but keep the architecture intelligible.
+
+Targeted edit after visual inspection:
+Edit this exact existing illustration, preserving all characters, all readable labels, every joke, typography, colors, composition, and overall visual appearance. Correct ONLY the dashed blue boundary labelled "Private Docker network": extend its right edge outward, making a stepped boundary if necessary, so BOTH of the physical passport booths labelled "chatgpt1 OAuth store 1" and "chatgpt2 OAuth store 2" are inside this same private Docker network together with LiteLLM and PostgreSQL. The destination cards "Anthropic", "Codex subscription 1", "Codex subscription 2", and "Optional paid APIs" must all remain OUTSIDE the network boundary. The booth-to-cloud arrows cross the boundary. Do not move or relabel the booths or alter any routing arrows; only reroute the dashed enclosure in existing whitespace to wrap both worker booths. Everything else unchanged. No new objects or text.
