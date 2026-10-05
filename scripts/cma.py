@@ -331,15 +331,56 @@ def backup():
     directory.mkdir(mode=0o700, exist_ok=True)
     import datetime
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    target = directory / ('database-' + stamp + '.dump')
+    bundle = directory / stamp
+    bundle.mkdir(mode=0o700)
+    target = bundle / 'database.dump'
     with target.open('xb') as output:
         target.chmod(0o600)
         cfg = config()
         subprocess.run(['docker', 'compose', '--project-name', cfg['project'], '--env-file',
             str(state_dir() / '.env'), '-f', str(state_dir() / 'compose.json'), 'exec', '-T',
             'db', 'pg_dump', '-U', 'litellm', '-d', 'litellm', '-Fc'], stdout=output, check=True)
-    print('Database backup:', target)
-    print('Also back up CMA_HOME privately and each chatgptN-auth Docker volume; see OPS.md.')
+    for name in ('.env', 'config.json', 'compose.json', 'proxy.yaml', 'chatgpt1.yaml', 'chatgpt2.yaml', 'gateway-key.json'):
+        source = state_dir() / name
+        if source.is_file(): write_private(bundle / name, source.read_text())
+    for number in range(1, config()['accounts'] + 1):
+        archive = bundle / ('chatgpt' + str(number) + '-auth.tar.gz')
+        with archive.open('xb') as output:
+            archive.chmod(0o600)
+            subprocess.run(['docker', 'compose', '--project-name', cfg['project'], '--env-file',
+                str(state_dir() / '.env'), '-f', str(state_dir() / 'compose.json'), 'exec', '-T',
+                'chatgpt' + str(number), 'tar', '-czf', '-', '-C', '/app/chatgpt-auth', '.'],
+                stdout=output, check=True)
+    write_private(bundle / 'manifest.json', {'image': config()['image'], 'accounts': config()['accounts'],
+                                            'project': config()['project'], 'created_utc': stamp})
+    print('Private gateway backup bundle:', bundle)
+    print('Contains database, salt/keys/config and Codex OAuth volumes. Encrypt/store privately; never commit it.')
+
+
+def native_token(account):
+    directory = Path.home() / '.claude' if account == 'primary' else Path(
+        os.getenv('CMA_CLAUDE_SECONDARY_DIR', state_dir() / 'claude-account-2'))
+    path = directory / '.credentials.json'
+    if not path.is_file() or path.is_symlink(): raise ValueError('Native Claude login missing')
+    return json.loads(path.read_text())['claudeAiOauth']['accessToken']
+
+
+def refresh_native(args):
+    token = native_token(args.account)
+    request = urllib.request.Request('https://api.anthropic.com/v1/models?limit=1000',
+        headers={'Authorization': 'Bearer ' + token, 'anthropic-version': '2023-06-01',
+                 'anthropic-beta': 'oauth-2025-04-20'})
+    with urllib.request.urlopen(request, timeout=30) as response: result = json.load(response)
+    if result.get('has_more'): raise ValueError('Native catalog pagination required; refusing an incomplete replacement')
+    ids = [row['id'] for row in result['data']]
+    if not ids or len(ids) != len(set(ids)) or not all(name.startswith('claude-') for name in ids):
+        raise ValueError('Unexpected native catalog; configuration unchanged')
+    cfg = config(); cfg['anthropic_model_ids'] = ids
+    import re
+    cfg['native_aliases'] = {re.sub(r'-\d{8}$', '', name): name for name in ids
+                             if re.search(r'-\d{8}$', name)}
+    write_private(state_dir() / 'config.json', cfg); render()
+    print('Native catalog refreshed:', len(ids), 'models. Run up to reconcile routes/key. OAuth was not stored in Docker.')
 
 
 def main():
@@ -361,6 +402,10 @@ def main():
     p.add_argument('--yolo', action='store_true'); p.add_argument('args', nargs=argparse.REMAINDER)
     p = sub.add_parser('install-launchers'); p.add_argument('--bin-dir', type=Path, default=Path.home() / '.local/bin')
     p = sub.add_parser('upgrade'); p.add_argument('--image', required=True)
+    p = sub.add_parser('refresh-native'); p.add_argument('--account', choices=('primary', 'backup'), default='primary')
+    p = sub.add_parser('smoke'); p.add_argument('--model', required=True)
+    p.add_argument('--effort', choices=LEVELS); p.add_argument('--native-account', choices=('primary', 'backup'), default='primary')
+    p.add_argument('--allow-spend', action='store_true')
     args = parser.parse_args()
     if args.command == 'init': init(args)
     elif args.command == 'render': render()
@@ -371,6 +416,17 @@ def main():
     elif args.command == 'sync-key': sync_key()
     elif args.command == 'check': check()
     elif args.command == 'backup': backup()
+    elif args.command == 'refresh-native': refresh_native(args)
+    elif args.command == 'smoke':
+        if not args.allow_spend: raise ValueError('smoke uses quota/money; explicitly pass --allow-spend')
+        policy = key_policy(config())
+        if args.model not in policy['models'] and args.model not in policy['aliases']:
+            raise ValueError('Model not permitted by this installation')
+        from smoke import probe
+        native = args.model.startswith('claude/anthropic/') or args.model in policy['aliases']
+        key = json.loads((state_dir() / 'gateway-key.json').read_text())['key']
+        print(json.dumps(probe(config()['base_url'], args.model, key, args.effort,
+                               native_token(args.native_account) if native else None)))
     elif args.command == 'prepare-client':
         subprocess.run([sys.executable, str(ROOT / 'patches/prepare.py'),
             '--source', shutil.which(os.getenv('CMA_CLAUDE_BIN', 'claude')) or 'claude',
@@ -411,6 +467,8 @@ def main():
         os.execvpe(command[0], command, env)
     elif args.command == 'launch': launch(args)
     elif args.command == 'install-launchers':
+        if '/plugins/cache/' in str(ROOT):
+            raise ValueError('Clone a stable utility checkout first; plugin-cache paths change on upgrades. See README.md')
         args.bin_dir.mkdir(parents=True, exist_ok=True)
         entries = {'cma': '', 'cma-claude': 'launch', 'cma-claude2': 'launch --account backup',
                    'cma-codex': 'codex', 'cma-codex2': 'codex --account backup'}
@@ -426,6 +484,7 @@ def main():
     elif args.command == 'upgrade':
         if not args.image.startswith(('docker.litellm.ai/berriai/litellm:', 'ghcr.io/berriai/litellm:')) or args.image.endswith(':latest'):
             raise ValueError('Supply a reviewed version tag, not latest or an arbitrary registry')
+        subprocess.run([str(ROOT / 'scripts/test-gateway.sh'), args.image], check=True)
         backup()
         cfg = config(); old = cfg['image']; cfg['image'] = args.image
         write_private(state_dir() / 'config.pre-upgrade.json', config())

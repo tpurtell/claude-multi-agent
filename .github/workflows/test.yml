@@ -1,0 +1,25 @@
+name: Tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Host unit tests
+        run: PYTHONPATH=patches:scripts python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Shell syntax
+        run: bash -n scripts/cma scripts/*.sh
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline bridge tests
+        run: ./scripts/test-gateway.sh

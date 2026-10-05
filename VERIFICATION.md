@@ -1,0 +1,40 @@
+# Verification record
+
+Recorded 2026-10-05. Reviewed baseline: Claude Code 2.1.289, LiteLLM 1.104.0,
+Python 3.10+ interface, Docker Compose. Tests use temporary state, synthetic
+credentials and fake upstream APIs. No personal NAS deployment was modified.
+
+## Completed
+
+- 27 host tests: finite model/schema/effort policy; native policy preservation;
+  per-agent definition isolation; native binary layout/cache upgrade/corruption;
+  manager state/permissions/secret guards; loopback-only ports; account dispatch;
+  private worker volumes; launcher argument forwarding; hook JSON/context;
+  duplicate task refusal; actual exit codes; whole-process-group stopping and
+  PID-reuse rejection.
+- 13 tests inside the pinned gateway image: dictionary completion events,
+  streaming tool-stop/usage, system/developer scoping, incomplete completion,
+  DeepSeek regex equivalence/recursive schema preservation/provider scoping.
+- Official Claude plugin/marketplace manifest validation passed.
+- Real isolated Docker stack with PostgreSQL, proxy and two workers: restricted
+  key generated/read back; exact extra-model catalog; streaming tool/follow-up
+  loops on four Codex routes and native Claude alias against fake upstreams;
+  xhigh arrived unchanged; native OAuth header preserved only on native routing.
+  Only that test project's containers/volumes were removed after the test.
+
+## Not established by those tests
+
+- New users' browser/device authorization, model entitlement, quota and vendor
+  subscription acceptance. Run login and explicitly approved live smoke tests.
+- Full Claude Agent execution/Remote Control against this localhost deployment:
+  fake upstream tool loops and patch unit tests are not that end-to-end proof.
+  The extracted implementation had live tests in the original deployment, but
+  those credentials/deployment are not part of this package's tests.
+- Future Claude/Bun or LiteLLM releases, macOS/Windows binaries, forced full-
+  context compaction, actual paid EXA searches or arbitrary model additions.
+- Production disaster recovery/schema rollback or a fully atomic backup across
+  independently refreshing OAuth stores. Quiesce usage and rehearse restoration.
+
+Follow the README verification commands; do not interpret a healthy service or
+present OAuth file as proof of account access. This record will be extended as
+isolated client preparation, backup and marketplace-install checks complete.
