@@ -135,6 +135,33 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(env['CODEX_HOME'], str(self.home / 'codex-account-2'))
             self.assertNotIn('OPENAI_API_KEY', env); self.assertNotIn('OPENAI_BASE_URL', env)
 
+    def test_compose_does_not_use_other_deployments_exported_secrets(self):
+        self.init()
+        with patch.dict(os.environ, {'LITELLM_MASTER_KEY': 'other-stack', 'POSTGRES_PASSWORD': 'other-db',
+                                     'SSH_AUTH_SOCK': '/existing-agent', 'OPENROUTER_API_KEY': 'disabled-provider'}), \
+                patch.object(cma.subprocess, 'run') as run:
+            cma.compose('ps')
+            env = run.call_args.kwargs['env']
+            self.assertNotIn('LITELLM_MASTER_KEY', env)
+            self.assertNotIn('POSTGRES_PASSWORD', env)
+            self.assertNotIn('OPENROUTER_API_KEY', env)
+            self.assertEqual(env['SSH_AUTH_SOCK'], '/existing-agent')
+
+    def test_no_eager_oauth_before_human_login_and_explicit_route_activation(self):
+        self.init()
+        for worker in ('chatgpt1', 'chatgpt2'):
+            self.assertEqual(json.loads((self.home / (worker + '.yaml')).read_text())['model_list'], [])
+        cfg = cma.config(); cfg['authorized_workers'] = ['chatgpt1']
+        cma.write_private(self.home / 'config.json', cfg); cma.render()
+        self.assertEqual(len(json.loads((self.home / 'chatgpt1.yaml').read_text())['model_list']), 2)
+        self.assertEqual(json.loads((self.home / 'chatgpt2.yaml').read_text())['model_list'], [])
+        with patch.object(cma, 'compose') as call:
+            cma.start_stack()
+            self.assertNotIn('--force-recreate', call.call_args_list[0].args)
+            for request in call.call_args_list[1:]:
+                self.assertIn('--force-recreate', request.args)
+                self.assertIn('--no-deps', request.args)
+
     def test_patch_scope_subset_and_cache_configuration_identity(self):
         approved = json.loads((ROOT / 'profiles/models.json').read_text())['other_models']
         try:

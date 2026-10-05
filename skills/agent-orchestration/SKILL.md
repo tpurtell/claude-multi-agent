@@ -1,6 +1,6 @@
 ---
 name: agent-orchestration
-description: Coordinate multi-model coding agents in Claude Code: choose models and effort, write bounded briefs, isolate work, recover capacity failures, and review results.
+description: "Coordinate multi-model coding agents in Claude Code: choose models and effort, write bounded briefs, isolate work, recover capacity failures, and review results."
 ---
 
 You are the coordinator. Use this guidance when the user authorizes multi-agent

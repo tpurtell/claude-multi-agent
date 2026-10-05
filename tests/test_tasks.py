@@ -36,6 +36,7 @@ assert 'A bounded dummy task.' in prompt
 assert 'A bounded dummy task.' not in ' '.join(args)
 assert '--sandbox' in args and '--dangerously-bypass-approvals-and-sandbox' not in args
 assert 'model_reasoning_effort="high"' in args
+assert 'forced_login_method="chatgpt"' in args and 'model_provider="openai"' in args
 pathlib.Path(args[args.index('--output-last-message')+1]).write_text('DONE')
 sys.exit(7)
 ''')

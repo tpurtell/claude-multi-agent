@@ -81,7 +81,16 @@ def compose(*args, check=True, capture=False):
     cfg = config()
     return subprocess.run(['docker', 'compose', '--project-name', cfg['project'],
         '--env-file', str(state_dir() / '.env'), '-f', str(state_dir() / 'compose.json'), *args],
-        check=check, capture_output=capture, text=capture)
+        check=check, capture_output=capture, text=capture, env=compose_environment())
+
+
+def compose_environment():
+    # Shell exports take precedence over Compose --env-file. Do not accidentally
+    # apply another deployment's exported database/master/provider secrets.
+    env = os.environ.copy()
+    for name in set(env_secrets()) | {'DEEPSEEK_API_KEY', 'OPENROUTER_API_KEY', 'EXA_API_KEY'}:
+        env.pop(name, None)
+    return env
 
 
 def subscription_info(ident):
@@ -99,6 +108,14 @@ def enabled_models(accounts, values):
         if (not model.endswith('-backup') or accounts == 2)
         and ('/deepseek/' not in model or values.get('DEEPSEEK_API_KEY'))
         and ('/xiaomi/' not in model or values.get('OPENROUTER_API_KEY'))]
+
+
+def worker_routes(worker):
+    return [{'model_name': model, 'litellm_params': {
+        'model': 'chatgpt/' + model, 'timeout': 900, 'num_retries': 0,
+        'allowed_openai_params': ['reasoning_effort'], 'input_cost_per_token': 0,
+        'output_cost_per_token': 0}, 'model_info': subscription_info(worker + '-' + model)}
+        for model in ('gpt-6.1-sol', 'gpt-6-astra')]
 
 
 def render():
@@ -161,11 +178,11 @@ def render():
     deps = {'db': {'condition': 'service_healthy'}}
     for number in range(1, cfg['accounts'] + 1):
         worker = 'chatgpt' + str(number)
-        worker_config = {'model_list': [{'model_name': model, 'litellm_params': {
-            'model': 'chatgpt/' + model, 'timeout': 900, 'num_retries': 0,
-            'allowed_openai_params': ['reasoning_effort'], 'input_cost_per_token': 0,
-            'output_cost_per_token': 0}, 'model_info': subscription_info(worker + '-' + model)}
-            for model in ('gpt-6.1-sol', 'gpt-6-astra')],
+        # LiteLLM eagerly authenticates ChatGPT while constructing its router.
+        # Start an empty, healthy worker before human login; activate its real
+        # deployments only after the explicit one-off device flow succeeds.
+        worker_config = {'model_list': worker_routes(worker)
+                         if worker in cfg.get('authorized_workers', []) else [],
             'general_settings': {'master_key': 'os.environ/LITELLM_MASTER_KEY'},
             'litellm_settings': {'callbacks': ['subscription_messages.callback']}}
         write_private(home / (worker + '.yaml'), worker_config)
@@ -203,7 +220,8 @@ def init(args):
     cfg = {'version': 1, 'port': args.port, 'base_url': 'http://127.0.0.1:' + str(args.port),
         'project': 'cma-' + secrets.token_hex(4), 'accounts': args.accounts, 'image': IMAGE,
         'postgres_image': 'postgres:16-alpine', 'yolo': args.yolo,
-        'anthropic_model_ids': PROFILE['anthropic_model_ids'], 'native_aliases': PROFILE['native_aliases']}
+        'anthropic_model_ids': PROFILE['anthropic_model_ids'], 'native_aliases': PROFILE['native_aliases'],
+        'authorized_workers': []}
     write_env(values)
     write_private(home / 'config.json', cfg)
     render()
@@ -264,6 +282,8 @@ def check():
         code = "from pathlib import Path; p=Path('/app/chatgpt-auth/auth.json'); print('present' if p.is_file() and p.stat().st_size else 'login required')"
         result = compose('exec', '-T', 'chatgpt' + str(number), 'python', '-c', code, capture=True)
         print('Codex subscription', number, ':', result.stdout.strip())
+        if 'chatgpt' + str(number) not in cfg.get('authorized_workers', []):
+            print('  Routes inactive until explicit login-chatgpt succeeds, then run up.')
     print('No inference requests made; OAuth file presence is not proof that tokens remain valid.')
 
 
@@ -339,7 +359,8 @@ def backup():
         cfg = config()
         subprocess.run(['docker', 'compose', '--project-name', cfg['project'], '--env-file',
             str(state_dir() / '.env'), '-f', str(state_dir() / 'compose.json'), 'exec', '-T',
-            'db', 'pg_dump', '-U', 'litellm', '-d', 'litellm', '-Fc'], stdout=output, check=True)
+            'db', 'pg_dump', '-U', 'litellm', '-d', 'litellm', '-Fc'], stdout=output, check=True,
+            env=compose_environment())
     for name in ('.env', 'config.json', 'compose.json', 'proxy.yaml', 'chatgpt1.yaml', 'chatgpt2.yaml', 'gateway-key.json'):
         source = state_dir() / name
         if source.is_file(): write_private(bundle / name, source.read_text())
@@ -350,11 +371,12 @@ def backup():
             subprocess.run(['docker', 'compose', '--project-name', cfg['project'], '--env-file',
                 str(state_dir() / '.env'), '-f', str(state_dir() / 'compose.json'), 'exec', '-T',
                 'chatgpt' + str(number), 'tar', '-czf', '-', '-C', '/app/chatgpt-auth', '.'],
-                stdout=output, check=True)
+                stdout=output, check=True, env=compose_environment())
     write_private(bundle / 'manifest.json', {'image': config()['image'], 'accounts': config()['accounts'],
                                             'project': config()['project'], 'created_utc': stamp})
     print('Private gateway backup bundle:', bundle)
     print('Contains database, salt/keys/config and Codex OAuth volumes. Encrypt/store privately; never commit it.')
+    return bundle
 
 
 def native_token(account):
@@ -363,6 +385,14 @@ def native_token(account):
     path = directory / '.credentials.json'
     if not path.is_file() or path.is_symlink(): raise ValueError('Native Claude login missing')
     return json.loads(path.read_text())['claudeAiOauth']['accessToken']
+
+
+def start_stack():
+    """Refresh bind-mounted configs without unnecessarily recreating the DB."""
+    compose('up', '-d', '--wait', '--wait-timeout', '300', 'db')
+    workers = ['chatgpt' + str(n) for n in range(1, config()['accounts'] + 1)]
+    compose('up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '300', *workers)
+    compose('up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '300', 'proxy')
 
 
 def refresh_native(args):
@@ -410,7 +440,7 @@ def main():
     if args.command == 'init': init(args)
     elif args.command == 'render': render()
     elif args.command == 'up':
-        render(); compose('up', '-d', '--wait', '--wait-timeout', '300'); sync_key(); check()
+        render(); start_stack(); sync_key(); check()
     elif args.command == 'down': compose('down')  # Deliberately no --volumes deletion command.
     elif args.command == 'status': compose('ps')
     elif args.command == 'sync-key': sync_key()
@@ -445,9 +475,12 @@ def main():
         worker = 'chatgpt2' if args.account == 'backup' else 'chatgpt1'
         if worker == 'chatgpt2' and config()['accounts'] != 2: raise ValueError('No backup worker configured')
         print('User action required: open the printed URL and authorize this account. Do not log or share the device code.', flush=True)
-        compose('exec', '-T', worker, 'python', '-c',
-            'from litellm.llms.chatgpt.authenticator import Authenticator; Authenticator().get_access_token()')
-        compose('exec', '-T', worker, 'chmod', '600', '/app/chatgpt-auth/auth.json')
+        compose('run', '--rm', '--no-deps', '--entrypoint', 'python', worker, '-c',
+            'import os; from litellm.llms.chatgpt.authenticator import Authenticator; '
+            'Authenticator().get_access_token(); os.chmod("/app/chatgpt-auth/auth.json", 0o600)')
+        cfg = config(); cfg['authorized_workers'] = list(dict.fromkeys([*cfg.get('authorized_workers', []), worker]))
+        write_private(state_dir() / 'config.json', cfg); render()
+        print('Account authorized; run up to activate its worker routes.')
     elif args.command == 'login-claude':
         env = clean_client_env()
         for name in ('ANTHROPIC_BASE_URL', 'ANTHROPIC_CUSTOM_HEADERS'): env.pop(name, None)
@@ -458,7 +491,8 @@ def main():
         subprocess.run([os.getenv('CMA_CLAUDE_BIN', 'claude'), 'auth', 'login'], env=env, check=True)
     elif args.command in ('codex', 'login-codex'):
         env = codex_environment(args.account)
-        command = [os.getenv('CMA_CODEX_BIN', 'codex')]
+        command = [os.getenv('CMA_CODEX_BIN', 'codex'), '-c', 'model_provider="openai"',
+                   '-c', 'forced_login_method="chatgpt"']
         if args.account == 'backup': command += ['-c', 'cli_auth_credentials_store="file"']
         if args.command == 'login-codex': command += ['login', '--device-auth']
         else:
@@ -490,7 +524,8 @@ def main():
         write_private(state_dir() / 'config.pre-upgrade.json', config())
         write_private(state_dir() / 'config.json', cfg); render()
         try:
-            compose('pull'); compose('up', '-d', '--wait', '--wait-timeout', '300'); sync_key(); check()
+            compose('pull', 'proxy', *['chatgpt' + str(n) for n in range(1, cfg['accounts'] + 1)])
+            start_stack(); sync_key(); check()
         except Exception:
             cfg['image'] = old; write_private(state_dir() / 'config.json', cfg); render()
             print('Upgrade failed. Config restored; database migrations may need the backup before rollback. See OPS.md.', file=sys.stderr)

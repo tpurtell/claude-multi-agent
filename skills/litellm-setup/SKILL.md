@@ -21,6 +21,8 @@ For a new authorized installation:
    `scripts/cma login-chatgpt primary` and `backup` at the appropriate time. Do
    not claim the deployment can infer until OAuth and model access are tested.
    A handoff is expected if the user is absent; complete all non-login work.
+   Then run up again to activate authenticated worker deployments. Unauthenticated
+   workers are deliberately healthy/empty, not falsely authorized.
 5. Run `scripts/cma prepare-client` to verify the isolated patch against the
    installed client. Unknown binary/schema layouts fail closed. Install only
    cma-prefixed launchers with `scripts/cma install-launchers` if authorized.

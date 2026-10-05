@@ -41,12 +41,22 @@ provider errors. Never publish .env, key JSON, OAuth volumes or backup/dump file
 3. Native Codex fallback: `cma login-codex primary|backup`. Primary retains the
    existing Codex home; backup uses `$CMA_HOME/codex-account-2` or
    CMA_CODEX_SECONDARY_HOME, with file-backed auth and separate config/history.
+   Fallback invocations select the official OpenAI provider and ChatGPT login
+   method explicitly, so a configured gateway/API-key default cannot silently
+   turn the fallback into the broken proxy or paid API path.
 
 Device login needs the owner. Valid worker tokens refresh normally, so
 login-chatgpt can reuse an existing login; it isn't an account-replacement
 command. Before deliberate replacement, back up and follow logout/login for
 only that store. Don't revoke or overwrite the other account. Distinguish
 expiration, entitlement, capacity, quota, transport and invalid parameters.
+Workers are initially healthy but empty: LiteLLM otherwise starts the device
+flow eagerly while building its router. Explicit login runs in a one-off
+container sharing only that account volume. On success it marks authorized_workers
+in private config; cma up recreates worker/proxy services to load those routes.
+If a volume is lost or startup auth fails, remove that worker from authorized_workers
+to return to the healthy login-pending mode; don't delete the other account's
+store. One-off login works even if the long-lived worker is not healthy.
 
 ## Launchers, permissions and updates
 

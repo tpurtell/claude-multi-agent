@@ -123,6 +123,7 @@ def main():
         cma.write_private(home / 'proxy.yaml', proxy)
         for worker in ('chatgpt1', 'chatgpt2'):
             worker_config = json.loads((home / (worker + '.yaml')).read_text())
+            worker_config['model_list'] = cma.worker_routes(worker)
             for route in worker_config['model_list']:
                 route['litellm_params'].update(model='openai/' + route['model_name'],
                                                api_base=base + '/v1', api_key='fake-test-worker')
@@ -132,7 +133,7 @@ def main():
             if name != 'db': service['extra_hosts'] = ['host.docker.internal:host-gateway']
         cma.write_private(home / 'compose.json', compose)
         try:
-            cma.compose('up', '-d', '--wait', '--wait-timeout', '300')
+            cma.start_stack()
             cma.sync_key(); cma.check()
             key = json.loads((home / 'gateway-key.json').read_text())['key']
             for model in cfg['models']:
@@ -150,6 +151,18 @@ def main():
                 'Native OAuth leaked to non-Anthropic requests'
             assert all(r['body'].get('reasoning', {}).get('effort') == 'xhigh' or
                        r['body'].get('reasoning_effort') == 'xhigh' for r in codex), 'Effort downgraded'
+            assert all(key not in r['headers'].values() and 'Bearer ' + key not in r['headers'].values()
+                       for r in REQUESTS), 'Restricted gateway key leaked to upstream'
+            bundle = cma.backup()
+            for name in ('database.dump', '.env', 'config.json', 'gateway-key.json',
+                         'chatgpt1-auth.tar.gz', 'chatgpt2-auth.tar.gz', 'manifest.json'):
+                target = bundle / name
+                assert target.is_file() and target.stat().st_size > 0
+                assert target.stat().st_mode & 0o777 == 0o600
+            # Verify the genuine no-login configs also start, without inference.
+            cma.render()
+            cma.start_stack()
+            cma.sync_key(); cma.check()
             print('PASS: real isolated Docker stack, restricted catalog, four Codex tool loops, native OAuth scoping, xhigh forwarding.')
         finally:
             assert cma.config()['project'] == project and project.startswith('cma-')

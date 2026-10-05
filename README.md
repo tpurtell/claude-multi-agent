@@ -98,6 +98,7 @@ login to test setup. Authorize the gateway Codex subscriptions separately:
 ```bash
 ./scripts/cma login-chatgpt primary
 ./scripts/cma login-chatgpt backup
+./scripts/cma up
 ```
 
 The owner opens each printed URL, enters its code, and chooses the right account.
@@ -105,6 +106,10 @@ Do not log/share/commit device codes. These worker logins are distinct from the
 native Codex CLI's login. Without the owner, leave this explicit handoff pending.
 A healthy stack/correct catalog does not establish inference. `check` reports
 OAuth file presence, not token validity, model entitlement or remaining quota.
+Before explicit login succeeds, workers start with no active ChatGPT deployments
+to avoid LiteLLM's eager device flow blocking unattended startup. Login runs in
+a one-off container using the same private OAuth volume; the following up
+recreates only workers/proxy to activate routes without recreating PostgreSQL.
 
 ### 4. Prepare the client and install new launchers
 
@@ -196,10 +201,15 @@ PYTHONPATH=patches:scripts python3 -m unittest discover -s tests -p 'test_*.py' 
 ./scripts/test-gateway.sh
 claude plugin validate .
 python3 tests/integration.py --allow-docker
+python3 tests/install_check.py --allow-native
 ```
 
 The opt-in Docker test creates its own random project/port, uses fake upstreams
 and removes only its own containers/volumes. No live credentials are used.
+The native install check prepares a copy of the installed Claude binary and
+installs the public marketplace only into a disposable home, without inference
+or account login. Root `CLAUDE.md` is contributor guidance; installed plugin
+runtime guidance is provided by the skills and startup hooks.
 [VERIFICATION.md](VERIFICATION.md) lists tested behavior and remaining login/
 upgrade limitations. Third-party binaries/images are not redistributed;
 see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

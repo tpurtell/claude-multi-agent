@@ -63,7 +63,8 @@ def run(args):
             raise ValueError('Task already running; resume or stop it before starting a duplicate') from None
         preamble = (ROOT / 'skills/codex-fallback/references/worker-preamble.md').read_text()
         prompt = preamble + '\n\nTask brief: ' + str(brief) + '\n\n' + brief.read_text()
-        command = [os.getenv('CMA_CODEX_BIN', 'codex')]
+        command = [os.getenv('CMA_CODEX_BIN', 'codex'), '-c', 'model_provider="openai"',
+                   '-c', 'forced_login_method="chatgpt"']
         if args.account == 'backup': command += ['-c', 'cli_auth_credentials_store="file"']
         command += ['exec', '--json', '--cd', str(cwd)]
         if args.yolo:
