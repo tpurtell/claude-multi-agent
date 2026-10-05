@@ -1,5 +1,5 @@
 {
-  "name": "claude-multi-agent",
+  "name": "hybrid-agents",
   "version": "0.1.0",
   "description": "Claude-first multi-model orchestration, isolated localhost LiteLLM setup, account launchers and direct Codex recovery.",
   "author": {"name": "tpurtell"},

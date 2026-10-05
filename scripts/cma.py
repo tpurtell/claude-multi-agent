@@ -296,8 +296,9 @@ def launch(args):
         {'model': row['id'], 'label': row.get('display_name') or row['id'],
          'description': row.get('description') or 'ClaudeHybrid extra model'} for row in catalog()]}}
     executable = os.getenv('CMA_CLAUDE_BIN', 'claude')
-    if not args.no_patch:
-        env.update(CLAUDE_HYBRID_REMOTE_CONTROL_PATCH='1' if args.remote_control_patch else '0',
+    if not args.no_patch and os.getenv('CMA_NO_PATCH') != '1':
+        env.update(CLAUDE_HYBRID_REMOTE_CONTROL_PATCH='1' if args.remote_control_patch or
+                   os.getenv('CMA_REMOTE_CONTROL_PATCH') == '1' else '0',
                    CLAUDE_HYBRID_SUBAGENT_PATCH='1', DISABLE_AUTOUPDATER='1')
         executable = subprocess.check_output([sys.executable, str(ROOT / 'patches/prepare.py'),
             '--source', shutil.which(executable) or executable, '--gateway', cfg['base_url'],
@@ -346,7 +347,7 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('init'); p.add_argument('--accounts', type=int, choices=(1, 2), default=2)
     p.add_argument('--port', type=int, default=4000); p.add_argument('--yolo', action='store_true')
-    for name in ('render', 'up', 'down', 'check', 'sync-key', 'backup', 'status'):
+    for name in ('render', 'up', 'down', 'check', 'sync-key', 'backup', 'status', 'prepare-client'):
         sub.add_parser(name)
     p = sub.add_parser('provider'); p.add_argument('name', choices=('deepseek', 'openrouter', 'exa'))
     p.add_argument('--disable', action='store_true')
@@ -370,6 +371,11 @@ def main():
     elif args.command == 'sync-key': sync_key()
     elif args.command == 'check': check()
     elif args.command == 'backup': backup()
+    elif args.command == 'prepare-client':
+        subprocess.run([sys.executable, str(ROOT / 'patches/prepare.py'),
+            '--source', shutil.which(os.getenv('CMA_CLAUDE_BIN', 'claude')) or 'claude',
+            '--gateway', config()['base_url'], '--models-file', str(state_dir() / 'config.json'),
+            '--cache', str(state_dir() / 'clients')], check=True)
     elif args.command == 'provider':
         name = {'deepseek': 'DEEPSEEK_API_KEY', 'openrouter': 'OPENROUTER_API_KEY', 'exa': 'EXA_API_KEY'}[args.name]
         values = env_secrets()
@@ -413,7 +419,8 @@ def main():
         for name, command in entries.items():
             target = args.bin_dir / name
             write_private(target, '#!/usr/bin/env bash\nset -Eeuo pipefail\nexec ' +
-                shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts/cma.py')) + ' ' + command + ' "$@"\n')
+                shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts/cma.py')) + ' ' +
+                command + (' --' if command else '') + ' "$@"\n')
             target.chmod(0o700)
         print('Installed only cma-prefixed launchers in', args.bin_dir)
     elif args.command == 'upgrade':

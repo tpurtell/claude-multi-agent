@@ -1,8 +1,9 @@
 {
   "name": "tpurtell-agent-tools",
+  "description": "Claude-first multi-model orchestration utilities",
   "owner": {"name": "tpurtell"},
   "plugins": [{
-    "name": "claude-multi-agent",
+    "name": "hybrid-agents",
     "source": "./",
     "description": "Multi-model Claude orchestration and localhost gateway utilities",
     "version": "0.1.0"
