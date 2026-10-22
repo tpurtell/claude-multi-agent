@@ -1,5 +1,26 @@
 # Verification record
 
+## DeepSeek inline-tool recovery — 2026-10-22
+
+Native Claude Code 2.1.306's refusal classifier now also recognizes the exact
+LiteLLM DeepSeek `unknown variant tool_definition, expected tool_reference`
+error at the configured gateway. It uses native kind-scoped recovery rather
+than disabling inline tools across the host. Model permissions and original
+native errors keep their behavior. No installed binary is edited.
+
+74 host tests passed (including two opt-in native tests skipped during discovery),
+as did 15 offline bridge tests in the private deployment's LiteLLM image and
+plugin validation (root context/icon warnings). The separate native model/effort
+test passed all 36 public-roster Agent launches on 2.1.306.
+The opt-in native inline test separately passed: ToolSearch discovery, injected
+connector-style inline request, HTTP 422, native retry with complete schema,
+MCP echo execution and coordinator inline-beta retention. It uses a temporary
+config/cache, dummy key and fake API. The injection reproduces the wire shape,
+not actual interactive connector discovery or the native history snapshot path.
+The same synthetic child also passed against the private real DeepSeek gateway;
+the coordinator/search remained fake. Public credential/login behavior,
+interactive connector resume and cache-hit performance were not tested here.
+
 ## Client compatibility update — 2026-10-15
 
 Claude Code 2.1.299 adds a `timing` argument to the Agent launch handler. Both

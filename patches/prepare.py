@@ -64,6 +64,13 @@ EFFORT_LADDER = re.compile(
     rb')\.filter\(\((' + IDENT + rb')\)=>(' + IDENT + rb')\(\4,\2\)\)\}'
 )
 EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
+INLINE_TOOL_BETA = b'inline-tools-2026-09-15'
+INLINE_TOOL_REFUSAL = re.compile(
+    rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{if\(!\(\2 instanceof ' +
+    IDENT + rb'\)\)return;let (' + IDENT + rb')=\2\.message;'
+    rb'if\(\(\2\.status===400\|\|\2\.status===422\)&&'
+    rb"/Input tag 'tool_definition'/\.test\(\3\)\)return\x22unsupported_on_platform\x22;"
+)
 MODEL_EFFORTS = {model: (('low', 'high', 'max') if '/deepseek/' in model else
                        () if '/xiaomi/' in model else EFFORTS)
                  for model in SUBAGENT_MODELS}
@@ -339,6 +346,28 @@ def patch_agent_launch_source(source, effort_module):
     return source, 'Agent.effort launch override'
 
 
+def patch_inline_tool_fallback_source(source):
+    """Let native recovery redeclare late tools; never drop/rename schemas."""
+    matches = list(INLINE_TOOL_REFUSAL.finditer(source))
+    require(len(matches) == 1, 'Inline tool refusal classifier changed')
+    match = matches[0]
+    message = match[3].decode()
+    # LiteLLM identifies this upstream by DeepseekException. Keep native
+    # Anthropic errors and other providers on their original recovery rules.
+    # kind_not_enabled takes the same native rebuild/retry path but does not
+    # mark the entire host as refusing inline tools. Other agents on this
+    # gateway (especially the native Claude coordinator) retain their support.
+    error = match[2].decode()
+    addition = (
+        'if((' + error + '.status===400||' + error + '.status===422)&&(' + HYBRID_ENABLED + ')&&' +
+        message + '.includes("DeepseekException")&&' +
+        r"/unknown variant [`'\x22]tool_definition[`'\x22], expected [`'\x22]tool_reference[`'\x22]/.test(" +
+        message + '))return"kind_not_enabled";'
+    ).encode()
+    replacement = match[0] + addition
+    return source[:match.start()] + replacement + source[match.end():], match[1].decode()
+
+
 def patch_binary(original):
     """Append changed module sources; preserve all other source/caches."""
     require(original[:6] == b'\x7fELF\x02\x01', "Unsupported client: expected ELF64 little-endian")
@@ -371,14 +400,20 @@ def patch_binary(original):
         return bytes(blob[start:start + length])
 
     effort_modules = []
+    has_inline_tools = False
     for i in range(table_len // 52):
         record = table + i * 52
+        if blob[record + 49] == 1 and INLINE_TOOL_BETA in slice_at(record, 8):
+            has_inline_tools = True
         if blob[record + 49] == 1 and EFFORT_RESOLVER.search(slice_at(record, 8)):
             effort_modules.append(slice_at(record, 0).decode())
     require(len(effort_modules) == 1, 'Expected one native effort module')
     targets = []
     patchers = {'remote_control': (GATE, patch_source), 'subagent_models': (AGENT_MODEL, patch_agent_source)}
     patchers['effort_capabilities'] = (EFFORT_RESOLVER, patch_effort_source)
+    if has_inline_tools:
+        patchers['inline_tool_fallback'] = (re.compile(rb"Input tag 'tool_definition'"),
+                                            patch_inline_tool_fallback_source)
     details = {}
     for i in range(table_len // 52):
         record = table + i * 52

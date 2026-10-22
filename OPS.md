@@ -122,6 +122,40 @@ the existing structural checks remain intact. The 36-launch fake-API test,
 handler signatures, including foreground/background effort persistence and
 rejection of unknown parameters. No live provider/RC/resume test was performed.
 
+### DeepSeek inline-tool errors (Claude Code 2.1.306)
+
+DeepSeek's Anthropic endpoint can reject `tool_addition` containing an inline
+`tool_definition`, saying `unknown variant tool_definition, expected
+tool_reference` (HTTP 422). A plain reference is not equivalent: the inline
+definition may be absent from the top-level tools list. Do not drop the block
+or rename it to a reference without declaring its schema.
+
+The isolated client patch recognizes this specific LiteLLM `DeepseekException`
+error on the configured gateway when the hybrid patch is enabled, then uses
+Claude's existing `kind_not_enabled` recovery to rebuild/retry with declarations
+and references. Other provider errors retain native handling. This reason
+avoids the host-wide refusal latch, so the native coordinator retains inline
+support. Model roster and routing are unaffected. Relaunch after preparing the
+new cache; running clients retain the old classifier.
+
+```bash
+python3 tests/test_native_inline_tools.py --allow-client --source "$(command -v claude)"
+```
+
+This isolated native test discovers a stdio MCP tool, injects a connector-style
+inline request at the fake API boundary, returns DeepSeek's error, verifies the
+retry carries the full schema and drops the inline beta, executes the MCP tool,
+then verifies the coordinator still has its inline beta. It uses dummy auth and
+temporary config/cache. It does not reproduce real connector login/discovery
+or measure cache hits. Moving definitions into the top-level list can rebuild
+the prefix; stable later requests can still use ordinary provider caching.
+
+An explicitly billable variant adds `--allow-spend --gateway-url URL --key-file
+PATH` and forwards only that synthetic DeepSeek child to a real gateway. The
+coordinator and initial search remain fake. The original private deployment
+passed that check on 2026-10-22; public users still need their own configured
+provider credentials and entitlement. No live native Claude/RC test is implied.
+
 No launcher creates namespaces/no-new-privileges flags. SSH inherits the
 terminal's SSH_AUTH_SOCK. Missing agent keys cause ordinary auth failures.
 Nobody-owned root files, read-only /mnt or sudo no-new-privileges errors imply

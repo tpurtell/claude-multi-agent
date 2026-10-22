@@ -53,7 +53,7 @@ Complete all non-login stages if the owner is absent and report pending logins.
 ### 1. Prerequisites and stable checkout
 
 Linux/Bash, Python 3.10+, Docker Compose, and a native ELF64/Bun Claude Code
-installation on PATH. Patches were tested with **Claude Code 2.1.299**; compatible
+installation on PATH. Patches were tested with **Claude Code 2.1.306**; compatible
 updates rebuild automatically, unknown layouts fail closed. macOS/Windows
 binaries are unsupported. Codex CLI is needed only for direct fallback.
 The user needs Docker access; don't silently escalate/change group membership.
