@@ -74,8 +74,8 @@ def fixture(source=SOURCE, agent_source=AGENT_SOURCE + AGENT_HANDLER):
 
 
 class PatchTests(unittest.TestCase):
-    def run_effort(self, checks, *, enabled=True, host=prepare.GATEWAY, preamble=''):
-        source, _ = prepare.patch_effort_source(EFFORT_SOURCE)
+    def run_effort(self, checks, *, enabled=True, host=prepare.GATEWAY, preamble='', source=EFFORT_SOURCE):
+        source, _ = prepare.patch_effort_source(source)
         setup = '''const assert=require('node:assert/strict');
           const disabled=()=>false,override=()=>undefined,carry=()=>undefined;
           let forced,cap=false;
@@ -190,6 +190,49 @@ class PatchTests(unittest.TestCase):
             prepare.patch_agent_launch_source(
                 timed.replace(b'timing:S', b'unknownTiming:S'), '/effort.js')
 
+    def test_native_319_budget_and_render_handoff_keeps_effort_transport(self):
+        handler = NATIVE_AGENT_HANDLER.replace(
+            b'effortState:e.getAppState(),inheritedLayers:',
+            b'effortState:e.getAppState(),pickedEffortModel:picked(e),inheritedLayers:'
+        ).replace(
+            b'let s={effort:"high"}',
+            b'let s={effort:"high",getSystemPrompt:()=>"synthetic"}'
+        ).replace(
+            b'let We=type(s);e.agentLifecycle.markTypeInvoked(s.agentType);',
+            b'let We=type(s),mem=await memory(s,e.storageV5),sys=s.getSystemPrompt({toolUseContext:e,primedAgentMemory:mem});'
+        ) + b'function picked(e){return "opus"}async function memory(s,storage){return "memory"}'
+        self.check_native_transport(handler)
+        for bad in (handler.replace(b'pickedEffortModel:', b'unknownEffortModel:'),
+                    handler.replace(b'primedAgentMemory:mem', b'primedAgentMemory:other')):
+            with self.assertRaisesRegex(ValueError, 'handoff changed'):
+                prepare.patch_agent_launch_source(bad, '/effort.js')
+
+    def test_319_imported_model_enum_requires_verified_declaration_and_binding(self):
+        source = b'import{Models}from"/models.js";' + AGENT_SOURCE.replace(
+            b'["sonnet","opus","haiku","fable"]', b'Models')
+        for declarations in (None, {'/wrong.js': {b'Models'}}, {'/models.js': {b'Wrong'}}):
+            with self.assertRaisesRegex(ValueError, 'declaration/import changed'):
+                prepare.patch_agent_source(source, declarations)
+        patched, _ = prepare.patch_agent_source(source, {'/models.js': {b'Models'}})
+        script = """
+          const enumFactory=values=>({nullable(){return this},optional(){return this},describe(){return values}});
+          const Models=['sonnet','opus','haiku','fable'];
+          process.env.CLAUDE_HYBRID_SUBAGENT_PATCH='1';
+          process.env.ANTHROPIC_BASE_URL=HOST;
+          SOURCE
+          console.log(JSON.stringify(schema.model));
+        """.replace('HOST', json.dumps(prepare.GATEWAY)).replace('SOURCE',
+            patched.replace(b'import{Models}from"/models.js";', b'').decode())
+        result = subprocess.check_output(['node', '-e', script], text=True)
+        self.assertEqual(json.loads(result), ['sonnet', 'opus', 'haiku', 'fable', *prepare.SUBAGENT_MODELS])
+
+    def test_shared_cache_span_still_has_bounds_checked(self):
+        original, table = fixture()
+        corrupted = bytearray(original)
+        struct.pack_into('<II', corrupted, 4104 + table + 16, 0, 2**32 - 1)
+        with self.assertRaisesRegex(ValueError, 'Bun pointer outside data'):
+            prepare.patch_binary(corrupted)
+
     def check_native_transport(self, source_handler):
         source, _ = prepare.patch_agent_launch_source(source_handler, '/effort.js')
         handler = source.replace(b'import{effort}from"/effort.js";', b'').decode()
@@ -264,6 +307,26 @@ class PatchTests(unittest.TestCase):
         self.assertIn(b'globalThis.__cmaHybridEffort.known(se)', output)
         with self.assertRaises(ValueError):
             prepare.patch_binary(output)
+
+    def test_319_inlined_policy_ladder_keeps_caps_and_real_gateway_levels(self):
+        source = EFFORT_SOURCE.replace(
+            b'function ladder(e){return effortOrder.filter((n)=>allowed(n,e))}',
+            b'function bound(e){return cap?"high":null}function rank(e){return effortOrder.indexOf(e)}'
+            b'function ladder(e){let n=bound(e);return effortOrder.filter((r)=>n===null||rank(r)<=rank(n))}'
+            b'function relative(e,n,r){let s=ladder(e).filter((f)=>f!=="max"&&supports(e));return s;}')
+        self.run_effort("""
+          const deep='claude/deepseek/deepseek-flash';
+          assert.deepEqual(ladder(deep),['low','high','max']);
+          assert.deepEqual(ladder('claude/xiaomi/mimo-v2.6-pro'),[]);
+          assert.deepEqual(ladder('opus'),effortOrder);
+          cap=true;
+          assert.deepEqual(ladder(deep),['low','high']);
+          assert.deepEqual(ladder('opus'),['low','medium','high']);
+        """, source=source)
+        for bad in (source.replace(b'rank(r)<=rank(n)', b'rank(r)<rank(n)'),
+                    source + b'function another(e){return effortOrder.filter((n)=>allowed(n,e))}'):
+            with self.assertRaisesRegex(ValueError, 'ladder'):
+                prepare.patch_effort_source(bad)
 
     def test_unknown_effort_layout_fails_closed(self):
         for bad in (EFFORT_SOURCE.replace(b'"max_effort"', b'"new"'),

@@ -122,7 +122,30 @@ the existing structural checks remain intact. The 36-launch fake-API test,
 handler signatures, including foreground/background effort persistence and
 rejection of unknown parameters. No live provider/RC/resume test was performed.
 
-### DeepSeek inline-tool errors (Claude Code 2.1.306)
+### Client compatibility: Claude Code 2.1.319 (2026-11-08)
+
+The new client moves the finite native Agent model enum into an imported
+constant, inlines effort-cap filtering, adds `pickedEffortModel` to native
+budget resolution, renders the finalized agent definition without the old
+lifecycle marker, and shares inline-tool error matching across beta types.
+The patch now recognizes these layouts, verifies the enum declaration/import
+and inline beta binding, and preserves native policy and request transport.
+Older reviewed layouts remain supported; unknown layouts still fail closed.
+
+Bun cache-pointer validation now checks bounds without copying the cache
+payload. The newer bundle shares large cache spans across many module records;
+copying each for validation made preparation needlessly slow. Actual changed
+module sources and their cache invalidation remain scoped as before.
+
+Verification used an isolated npm-native 2.1.319 executable before any normal
+installation update: host tests, both opt-in native tests, pinned gateway bridge
+checks and plugin validation. The public native test exercised all 36 model/
+effort launches plus the injected inline-refusal recovery/MCP round trip.
+Native 2.1.306 also passed the private model/effort and inline-recovery probes.
+No provider inference, live Remote Control or native resume was newly tested.
+Restart hybrid clients after updating the normal client and preparing the cache.
+
+### DeepSeek inline-tool errors (Claude Code 2.1.306+)
 
 DeepSeek's Anthropic endpoint can reject `tool_addition` containing an inline
 `tool_definition`, saying `unknown variant tool_definition, expected

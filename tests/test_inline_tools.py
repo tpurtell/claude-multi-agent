@@ -13,7 +13,20 @@ function refused(e){if(!(e instanceof ApiError))return;let n=e.message;if((e.sta
 
 class InlineToolTests(unittest.TestCase):
     def test_native_recovery_classification_preserves_other_error_handling(self):
-        patched, _ = prepare.patch_inline_tool_fallback_source(REFUSAL)
+        self.check_classification(REFUSAL)
+
+    def test_319_shared_tag_classifier_keeps_beta_and_provider_scope(self):
+        source = REFUSAL.replace(
+            b"/Input tag 'tool_definition'/.test(n)", b'tag(beta,n)')
+        source += b"""const tags=new Map([[beta,/^tool_definition$/]]);
+function tag(beta,message){return tags.get(beta).test(message.match(/Input tag '([\\w.-]+)'/)?.[1]??"")}"""
+        self.check_classification(source)
+        with self.assertRaisesRegex(ValueError, 'beta binding changed'):
+            prepare.patch_inline_tool_fallback_source(source.replace(
+                b'[beta,/^tool_definition$/]', b'[other,/^tool_definition$/]'))
+
+    def check_classification(self, source):
+        patched, _ = prepare.patch_inline_tool_fallback_source(source)
         script = '''const assert=require('node:assert/strict');
           class ApiError extends Error {constructor(status,message){super(message);this.status=status}}
           SOURCE

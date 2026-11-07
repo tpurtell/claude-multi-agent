@@ -6,6 +6,6 @@
     "name": "hybrid-agents",
     "source": "./",
     "description": "Multi-model Claude orchestration and localhost gateway utilities",
-    "version": "0.1.0"
+    "version": "0.1.1"
   }]
 }

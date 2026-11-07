@@ -1,5 +1,28 @@
 # Verification record
 
+## Client compatibility update — 2026-11-08
+
+Plugin and marketplace versions are 0.1.1 so installed plugin users can discover
+the release. Utility launchers still use their stable source checkout.
+
+Claude Code 2.1.319 is supported alongside prior reviewed layouts. Tests cover
+its imported finite model enum (including declaration/import rejection),
+inlined effort caps, picked-model budget context/final definition rendering,
+and beta-bound shared inline-error matcher. Bun cache span validation retains
+bounds checks while avoiding large payload copies.
+
+79 host tests passed (77 active, two opt-in native checks skipped during normal
+discovery), as did 15 pinned LiteLLM bridge checks and plugin validation (the
+existing root-context/icon warnings remain). Private host checks passed too:
+32 discovered, 30 active and the same two native checks separately opted in.
+
+The actual native 2.1.319 executable passed the public 36-launch model/effort
+test and the injected inline-refusal/native retry/MCP execution test, using a
+fake loopback API, temporary state and dummy credentials. Private 2.1.306 and
+2.1.319 probes also passed with their four-model roster. The installed binary
+was unchanged by each probe. Native Claude/provider inference, live RC, full
+interactive connector discovery and native resume were not newly tested.
+
 ## DeepSeek inline-tool recovery — 2026-10-22
 
 Native Claude Code 2.1.306's refusal classifier now also recognizes the exact

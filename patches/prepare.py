@@ -29,8 +29,11 @@ GATE = re.compile(
     rb"if\((" + IDENT + rb")\.ANTHROPIC_UNIX_SOCKET\)return!1;return (" + IDENT + rb")\(\)\}"
 )
 AGENT_MODEL = re.compile(
-    rb'model:(' + IDENT + rb')\((\["sonnet","opus","haiku","fable"\])\)'
+    rb'model:(' + IDENT + rb')\((\["sonnet","opus","haiku","fable"\]|' + IDENT + rb')\)'
     rb'(?=\.optional\(\)\.describe\(`Optional model override for this agent\.)'
+)
+AGENT_MODEL_CONSTANT = re.compile(
+    rb'(?:var |,)(' + IDENT + rb')=\["sonnet","opus","haiku","fable"\](?=[,;])'
 )
 NATIVE_AGENT_EFFORT = re.compile(
     rb'effort:(' + IDENT + rb')\((' + IDENT + rb'|\[\.\.\.' + IDENT +
@@ -63,13 +66,19 @@ EFFORT_LADDER = re.compile(
     rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{return (' + IDENT +
     rb')\.filter\(\((' + IDENT + rb')\)=>(' + IDENT + rb')\(\4,\2\)\)\}'
 )
+EFFORT_LADDER_INLINE = re.compile(
+    rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{let (' + IDENT +
+    rb')=(' + IDENT + rb')\(\2\);return (' + IDENT + rb')\.filter\(\((' +
+    IDENT + rb')\)=>\3===null\|\|(' + IDENT + rb')\(\6\)<=\7\(\3\)\)\}'
+)
 EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
 INLINE_TOOL_BETA = b'inline-tools-2026-09-15'
 INLINE_TOOL_REFUSAL = re.compile(
     rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{if\(!\(\2 instanceof ' +
     IDENT + rb'\)\)return;let (' + IDENT + rb')=\2\.message;'
     rb'if\(\(\2\.status===400\|\|\2\.status===422\)&&'
-    rb"/Input tag 'tool_definition'/\.test\(\3\)\)return\x22unsupported_on_platform\x22;"
+    rb"(?:/Input tag 'tool_definition'/\.test\(\3\)|(" + IDENT +
+    rb")\((" + IDENT + rb"),\3\))\)return\x22unsupported_on_platform\x22;"
 )
 MODEL_EFFORTS = {model: (('low', 'high', 'max') if '/deepseek/' in model else
                        () if '/xiaomi/' in model else EFFORTS)
@@ -129,7 +138,8 @@ def patch_effort_source(source):
                     'if(levels!==undefined)return ' + value + ';}').encode()
         source = source[:pos] + addition + source[pos:]
     ladders = list(EFFORT_LADDER.finditer(source))
-    require(len(ladders) <= 1, 'Effort level ladder is ambiguous')
+    inline_ladders = list(EFFORT_LADDER_INLINE.finditer(source))
+    require(len(ladders) + len(inline_ladders) <= 1, 'Effort level ladder is ambiguous')
     if ladders:
         ladder = ladders[0]
         param, enum, item, policy = (ladder[i].decode() for i in range(2, 6))
@@ -139,6 +149,18 @@ def patch_effort_source(source):
                     ')=>levels.includes(' + item + ')&&' + policy + '(' + item + ',' +
                     param + '));}').encode()
         source = source[:pos] + addition + source[pos:]
+    elif inline_ladders:
+        # 2.1.319 inlines the same rank/cap policy into the native ladder.
+        # Narrow our technical levels while retaining that exact predicate.
+        ladder = inline_ladders[0]
+        param, cap, policy, enum, item, rank = (ladder[i].decode() for i in range(2, 8))
+        pos = source.index(b'{', ladder.start()) + 1
+        addition = ('{const levels=cmaEffortLevels(' + param + ');'
+                    'if(levels!==undefined){let ' + cap + '=' + policy + '(' + param +
+                    ');return ' + enum + '.filter((' + item + ')=>levels.includes(' +
+                    item + ')&&(' + cap + '===null||' + rank + '(' + item + ')<=' +
+                    rank + '(' + cap + ')));}}').encode()
+        source = source[:pos] + addition + source[pos:]
     # A client with native relative effort must retain its policy-filtered
     # ladder. Only narrow technical levels for known gateway models; never
     # replace native stepping or remove managed-policy filtering.
@@ -146,7 +168,7 @@ def patch_effort_source(source):
                          rb',' + IDENT + rb'\)\{let ' + IDENT + rb'=' + IDENT +
                          rb'\(' + IDENT + rb'\)\.filter\(\(' + IDENT +
                          rb'\)=>'+ IDENT + rb'!=="max"&&', source)
-    require(not relative or ladders, 'Native relative effort ladder changed')
+    require(not relative or ladders or inline_ladders, 'Native relative effort ladder changed')
     helper = r'''
 function cmaEffortEnabled(){return ENABLED;}
 const cmaEffortCatalog=CATALOG;
@@ -241,10 +263,20 @@ def patch_source(source):
     return source[:match.start()] + replacement + source[match.end():], match[1].decode()
 
 
-def patch_agent_source(source):
+def patch_agent_source(source, native_model_modules=None):
     matches = list(AGENT_MODEL.finditer(source))
     require(len(matches) == 1, f"Expected one Agent model enum, found {len(matches)}")
     match = matches[0]
+    if not match[2].startswith(b'['):
+        # 2.1.319 imports the finite enum from a separate module. Verify its
+        # declaration and import binding before extending it.
+        symbol = match[2]
+        local = any(item[1] == symbol for item in AGENT_MODEL_CONSTANT.finditer(source))
+        imported = any(symbol in symbols and re.search(
+            rb'import\{[^}]*\b' + re.escape(symbol) + rb'\b[^}]*\}from' +
+            re.escape(json.dumps(module).encode()), source)
+            for module, symbols in (native_model_modules or {}).items())
+        require(local or imported, 'Agent model enum declaration/import changed')
     # Feed the actual tool schema, not only prose or /model. Keep a finite enum;
     # model resolution and organization/gateway authorization are untouched.
     catalog = (b'...(process.env.CLAUDE_HYBRID_SUBAGENT_PATCH==="1"&&'
@@ -260,7 +292,7 @@ def patch_agent_source(source):
     effort = b'' if native_effort else ('...(' + HYBRID_ENABLED + '?{effort:' + match[1].decode() + '(' +
               json.dumps(('default', *EFFORTS)) + ').nullable().optional().describe(' +
               json.dumps(EFFORT_DESCRIPTION) + ')}:{}),').encode()
-    replacement = effort + b'model:' + match[1] + b'(' + match[2][:-1] + b',' + catalog + b'])'
+    replacement = effort + b'model:' + match[1] + b'([...' + match[2] + b',' + catalog + b'])'
     source = source[:match.start()] + replacement + source[match.end():]
     for native in reversed(list(NATIVE_AGENT_EFFORT.finditer(source))):
         factory, levels = native[1].decode(), native[2].decode()
@@ -300,13 +332,30 @@ def patch_agent_launch_source(source, effort_module):
         require(remote and len(set(remote)) == 1, 'Agent remote launch guard changed')
         # Verify native budget/permission-layer resolution and final definition
         # handoff still follow this site before touching it.
-        budget = (b'({agentDefinition:' + definition + b',isFork:' + fork + b',model:' + model +
-                  b',effortState:' + context + b'.getAppState(),inheritedLayers:' + context +
-                  b'.permissionLayers,recordedBudgetText:void 0})')
-        require(budget in source[end.end():end.end() + 1200], 'Native Agent effort budget handoff changed')
+        budget = (re.escape(b'({agentDefinition:' + definition + b',isFork:' + fork + b',model:' + model +
+                            b',effortState:' + context + b'.getAppState(),') +
+                  rb'(?:pickedEffortModel:' + IDENT + rb'\(' + re.escape(context) + rb'\),)?' +
+                  re.escape(b'inheritedLayers:' + context +
+                            b'.permissionLayers,recordedBudgetText:void 0})'))
+        budgets = list(re.finditer(budget, source[end.end():end.end() + 1200]))
+        require(len(budgets) == 1, 'Native Agent effort budget handoff changed')
         lifecycle = context + b'.agentLifecycle.markTypeInvoked(' + definition + b'.agentType);'
-        require(source.count(lifecycle) == 1 and lifecycle in source[end.end():end.end() + 1600],
-                'Native Agent final definition handoff changed')
+        if lifecycle in source:
+            require(source.count(lifecycle) == 1 and lifecycle in source[end.end():end.end() + 1600],
+                    'Native Agent final definition handoff changed')
+        else:
+            # 2.1.319 renders the finalized definition directly, with the
+            # selected effort-model context carried in the native budget call.
+            rendered = (re.escape(definition) + rb'=(' + IDENT + rb')\?\.agentDefinition\?\?' +
+                        re.escape(definition) + rb';let ' + IDENT + rb'=' + IDENT +
+                        rb'\(' + re.escape(definition) + rb'\),(' + IDENT + rb')=await ' +
+                        IDENT + rb'\(' + re.escape(definition) + rb',' + re.escape(context) +
+                        rb'\.storageV5\),' + IDENT + rb'=' + re.escape(definition) +
+                        rb'\.getSystemPrompt\(\{toolUseContext:' + re.escape(context) +
+                        rb',primedAgentMemory:\2\}\)')
+            require(b'pickedEffortModel:' in budgets[0][0] and
+                    re.search(rendered, source[end.end():end.end() + 1600]),
+                    'Native Agent final definition handoff changed')
         insertion = (b'if(' + HYBRID_ENABLED.encode() + b'){' +
                      b'globalThis.__cmaHybridEffort.relative(' + input_name + b'.effort,' +
                      model + b',' + fork + b'||' + remote[0] + b');'
@@ -351,6 +400,11 @@ def patch_inline_tool_fallback_source(source):
     matches = list(INLINE_TOOL_REFUSAL.finditer(source))
     require(len(matches) == 1, 'Inline tool refusal classifier changed')
     match = matches[0]
+    if match[5]:
+        # The newer shared tag matcher dispatches by beta. Bind this branch
+        # specifically to inline tool definitions, not another beta classifier.
+        require(b'[' + match[5] + b',/^tool_definition$/]' in source,
+                'Inline tool refusal beta binding changed')
     message = match[3].decode()
     # LiteLLM identifies this upstream by DeepseekException. Keep native
     # Anthropic errors and other providers on their original recovery rules.
@@ -364,7 +418,8 @@ def patch_inline_tool_fallback_source(source):
         r"/unknown variant [`'\x22]tool_definition[`'\x22], expected [`'\x22]tool_reference[`'\x22]/.test(" +
         message + '))return"kind_not_enabled";'
     ).encode()
-    replacement = match[0] + addition
+    pos = match[0].index(b'if((')
+    replacement = match[0][:pos] + addition + match[0][pos:]
     return source[:match.start()] + replacement + source[match.end():], match[1].decode()
 
 
@@ -394,25 +449,34 @@ def patch_binary(original):
     require(count == footer and table_len > 0 and table_len % 52 == 0, "Unsupported Bun module layout")
     require(table + table_len <= footer and entry < table_len // 52, "Invalid Bun module table")
 
-    def slice_at(record, field):
+    def checked_span(record, field):
         start, length = struct.unpack_from('<II', blob, record + field)
         require(start + length <= footer, "Bun pointer outside data")
-        return bytes(blob[start:start + length])
+        return start, length
+
+    def slice_at(record, field):
+        start, length = checked_span(record, field)
+        return bytes(memoryview(blob)[start:start + length])
 
     effort_modules = []
     has_inline_tools = False
+    native_model_modules = {}
     for i in range(table_len // 52):
         record = table + i * 52
         if blob[record + 49] == 1 and INLINE_TOOL_BETA in slice_at(record, 8):
             has_inline_tools = True
         if blob[record + 49] == 1 and EFFORT_RESOLVER.search(slice_at(record, 8)):
             effort_modules.append(slice_at(record, 0).decode())
+        if blob[record + 49] == 1:
+            symbols = {match[1] for match in AGENT_MODEL_CONSTANT.finditer(slice_at(record, 8))}
+            if symbols:
+                native_model_modules[slice_at(record, 0).decode()] = symbols
     require(len(effort_modules) == 1, 'Expected one native effort module')
     targets = []
     patchers = {'remote_control': (GATE, patch_source), 'subagent_models': (AGENT_MODEL, patch_agent_source)}
     patchers['effort_capabilities'] = (EFFORT_RESOLVER, patch_effort_source)
     if has_inline_tools:
-        patchers['inline_tool_fallback'] = (re.compile(rb"Input tag 'tool_definition'"),
+        patchers['inline_tool_fallback'] = (INLINE_TOOL_REFUSAL,
                                             patch_inline_tool_fallback_source)
     details = {}
     for i in range(table_len // 52):
@@ -420,7 +484,9 @@ def patch_binary(original):
         name = slice_at(record, 0)
         require(name and b'\0' not in name, "Invalid Bun module name")
         for field in (8, 16, 24, 32, 40):
-            slice_at(record, field)
+            # 2.1.319 can share large bytecode/cache spans between records.
+            # Bounds validation needs no copy of that payload.
+            checked_span(record, field)
         if blob[record + 49] != 1:  # JavaScript loader, not binary assets
             continue
         source = slice_at(record, 8)
@@ -429,7 +495,10 @@ def patch_binary(original):
             if pattern.search(patched):
                 require(patch_name not in details, f"Ambiguous patch modules: {patch_name}")
                 require(blob[record + 48] in (0, 1), "Unsupported source encoding")
-                patched, symbol = patcher(patched)
+                if patch_name == 'subagent_models':
+                    patched, symbol = patcher(patched, native_model_modules)
+                else:
+                    patched, symbol = patcher(patched)
                 details[patch_name] = {'module': name.decode(), 'symbol': symbol}
                 if patch_name == 'subagent_models':
                     patched, _ = patch_agent_launch_source(patched, effort_modules[0])
