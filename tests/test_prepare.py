@@ -207,6 +207,35 @@ class PatchTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'handoff changed'):
                 prepare.patch_agent_launch_source(bad, '/effort.js')
 
+    def test_325_normalized_effort_helpers_preserve_native_and_custom_policy(self):
+        source = EFFORT_SOURCE.replace(
+            b'function supports(e){if(disabled(e))return!1;let n=override(e,"effort");',
+            b'function supports(e){let canonical=normalize(e);if(disabled(canonical))return!1;let n=override(canonical,"effort");'
+        ).replace(b'carriedEffort:d=carry(e)', b'carriedEffort:d=carry(normalize(e))')
+        self.run_effort("""
+          assert.equal(supports('claude/chatgpt/gpt-6.1-sol'),true);
+          assert.equal(effort('claude/deepseek/deepseek-flash','max'),'max');
+          assert.equal(supports('haiku'),false);
+          cap=true;assert.equal(effort('claude/deepseek/deepseek-flash','max'),'high');
+        """, source=source, preamble='const normalize=e=>e;')
+        for bad in (source.replace(b'disabled(canonical)', b'disabled(other)'),
+                    source.replace(b'override(canonical,"effort")', b'override(other,"effort")'),
+                    source.replace(b'carry(normalize(e))', b'carry(normalize(other))')):
+            with self.assertRaises(ValueError):
+                prepare.patch_effort_source(bad)
+
+    def test_325_native_definition_inheritance_precedes_final_effort(self):
+        handler = NATIVE_AGENT_HANDLER.replace(
+            b'let Qe=X?"inherit":qe,se=',
+            b'let Qe=X?"inherit":qe,hook=he||e.spawnedByWorkflowRunId!==void 0?void 0:inheritDefinition(s,{parentModel:parent(e),callModel:Qe,effortState:e.getAppState(),inheritedLayers:e.permissionLayers,isResume:!1});s=hook?.definition??s;let se='
+        ) + b'function inheritDefinition(s,options){return {definition:s}}function parent(e){return "opus"}'
+        self.check_native_transport(handler)
+        for bad in (handler.replace(b'callModel:Qe', b'callModel:other'),
+                    handler.replace(b'parentModel:parent(e)', b'parentModel:parent(other)'),
+                    handler.replace(b'inheritedLayers:e.permissionLayers,isResume:!1', b'inheritedLayers:other.permissionLayers,isResume:!1')):
+            with self.assertRaises(ValueError):
+                prepare.patch_agent_launch_source(bad, '/effort.js')
+
     def test_319_imported_model_enum_requires_verified_declaration_and_binding(self):
         source = b'import{Models}from"/models.js";' + AGENT_SOURCE.replace(
             b'["sonnet","opus","haiku","fable"]', b'Models')

@@ -122,6 +122,36 @@ the existing structural checks remain intact. The 36-launch fake-API test,
 handler signatures, including foreground/background effort persistence and
 rejection of unknown parameters. No live provider/RC/resume test was performed.
 
+### Fable 5.2 and Claude Code 2.1.325 (2026-11-14)
+
+The native `fable` alias followed Fable 5.1 in Claude Code 2.1.319. Anthropic
+changed it to Fable 5.2 in 2.1.321. Our Agent patch retains the native alias
+resolver; it does not replace that alias with a versioned model ID. Upgrade
+the normal client, prepare the isolated client, and relaunch to pick up the
+new resolver. Fable 5.2 requires 2.1.321 or later.
+
+The default native gateway catalog now permits `claude-fable-5-2` and
+`claude-haiku-5-5`, retaining the older IDs. Existing instances must run
+`cma refresh-native --account primary`, then `cma up` to update their own
+catalog/routes/key. A client upgrade alone cannot add an allowed gateway route.
+The gateway still hides native Claude IDs from its extra-model picker listing.
+
+2.1.325 normalizes the model before effort-capability/default resolution and
+adds native definition inheritance before the final Agent model resolution.
+The patch verifies those precise layouts and applies custom effort after
+inheritance/model resolution, preserving native policy, budgets and transport.
+Unknown layouts still fail closed; the installed executable is never patched.
+
+Verification: offline host tests, real isolated 2.1.325 Agent schema/wire probes
+(37 launches, including `model: "fable"` resolving to `claude-fable-5-2`) and
+inline-refusal recovery/MCP execution. A private 2.1.319 regression probe uses
+`--expected-fable-model claude-fable-5-1` to assert its earlier native default.
+No live provider inference, Remote Control or native resume was tested for this
+update. Already-running clients keep their old resolver until relaunched.
+
+References: [Claude Code model configuration](https://code.claude.com/docs/en/model-config)
+and [Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/overview).
+
 ### Client compatibility: Claude Code 2.1.319 (2026-11-08)
 
 The new client moves the finite native Agent model enum into an imported

@@ -16,6 +16,7 @@ import threading
 import unittest
 
 SOURCE = None
+FABLE_MODEL = 'claude-fable-5-2'
 ROOT = Path(__file__).resolve().parent
 PATCHER = ROOT / "prepare.py" if (ROOT / "prepare.py").exists() else ROOT.parent / "patches/prepare.py"
 
@@ -35,6 +36,7 @@ class NativeClientTests(unittest.TestCase):
         cases.append(("claude/xiaomi/mimo-v2.6-pro", "default"))
         cases.extend((model, level) for model in patcher.SUBAGENT_MODELS
                      if "/xiaomi/" not in model for level in ("lower", "higher"))
+        cases.append(('fable', 'high'))
         def wire_effort(model, level):
             if level == "default":
                 return None
@@ -42,7 +44,8 @@ class NativeClientTests(unittest.TestCase):
                 return ({"lower": "low", "higher": "high"}[level] if "/deepseek/" in model else
                         {"lower": "medium", "higher": "xhigh"}[level])
             return {"medium": "high", "xhigh": "max"}.get(level, level) if "/deepseek/" in model else level
-        expected = Counter((model, wire_effort(model, level)) for model, level in cases)
+        expected = Counter((FABLE_MODEL if model == 'fable' else model,
+                            wire_effort(model, level)) for model, level in cases)
         schemas = []
         coordinator_rounds = []
 
@@ -180,6 +183,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-client", action="store_true", required=True)
     parser.add_argument("--source", required=True)
+    parser.add_argument('--expected-fable-model', default=FABLE_MODEL,
+                        help='Expected native fable alias on the wire (override for older clients)')
     options = parser.parse_args()
     SOURCE = options.source
+    FABLE_MODEL = options.expected_fable_model
     unittest.main(argv=[__file__, "-v"])

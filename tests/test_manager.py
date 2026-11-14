@@ -79,6 +79,8 @@ class ManagerTests(unittest.TestCase):
     def test_key_exact_policy_and_no_native_picker_duplicates(self):
         self.init()
         cfg = cma.config(); policy = cma.key_policy(cfg)
+        self.assertEqual(policy['aliases']['claude-fable-5-2'], 'claude/anthropic/claude-fable-5-2')
+        self.assertEqual(policy['aliases']['claude-fable-5-1'], 'claude/anthropic/claude-fable-5-1')
         self.assertEqual(set(policy['models']), set(cfg['models']) |
                          {'claude/anthropic/' + name for name in cfg['anthropic_model_ids']})
         self.assertTrue(set(policy['aliases'].values()) <= set(policy['models']))

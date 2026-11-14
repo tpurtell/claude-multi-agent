@@ -54,13 +54,14 @@ HYBRID_ENABLED = ('process.env.CLAUDE_HYBRID_SUBAGENT_PATCH==="1"&&'
                   'process.env.ANTHROPIC_BASE_URL===' + json.dumps(GATEWAY))
 EFFORT_CAP = re.compile(
     rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{'
-    rb'if\(!?'+ IDENT + rb'\(\2\)\)return!1;let '+ IDENT + rb'='
-    + IDENT + rb'\(\2,"(effort|max_effort|xhigh_effort)"\);'
+    rb'(?:let (?P<normalized>'+ IDENT + rb')='+ IDENT + rb'\(\2\);)?'
+    rb'if\(!?'+ IDENT + rb'\((?(normalized)(?P=normalized)|\2)\)\)return!1;let '+ IDENT + rb'='
+    + IDENT + rb'\((?(normalized)(?P=normalized)|\2),"(?P<capability>effort|max_effort|xhigh_effort)"\);'
 )
 EFFORT_RESOLVER = re.compile(
     rb'function (' + IDENT + rb')\((' + IDENT + rb'),'+ IDENT +
     rb',\{turnEffort:'+ IDENT + rb',hookEffortValue:'+ IDENT +
-    rb',carriedEffort:'+ IDENT + rb'='+ IDENT + rb'\(\2\)\}=\{\}\)\{'
+    rb',carriedEffort:'+ IDENT + rb'='+ IDENT + rb'\((?:\2|'+ IDENT + rb'\(\2\))\)\}=\{\}\)\{'
 )
 EFFORT_LADDER = re.compile(
     rb'function (' + IDENT + rb')\((' + IDENT + rb')\)\{return (' + IDENT +
@@ -121,16 +122,16 @@ def configure(gateway, models):
 def patch_effort_source(source):
     """Use native request/permission-layer plumbing, not a parallel effort state."""
     caps = list(EFFORT_CAP.finditer(source))
-    require(len(caps) == 3 and {m[3].decode() for m in caps} ==
+    require(len(caps) == 3 and {m['capability'].decode() for m in caps} ==
             {'effort', 'max_effort', 'xhigh_effort'}, 'Effort capability helpers changed')
     resolvers = list(EFFORT_RESOLVER.finditer(source))
     require(len(resolvers) == 1, 'Effort resolver changed')
     resolver = resolvers[0][1].decode()
-    symbols = {m[3].decode(): m[1].decode() for m in caps}
+    symbols = {m['capability'].decode(): m[1].decode() for m in caps}
     # Override only technical capabilities of our exact six routes. Native
     # Claude capabilities and the separate managed-policy effort caps survive.
     for match in reversed(caps):
-        param, capability = match[2].decode(), match[3].decode()
+        param, capability = match[2].decode(), match['capability'].decode()
         value = 'levels.length>0' if capability == 'effort' else (
             'levels.includes(' + json.dumps(capability.removesuffix('_effort')) + ')')
         pos = source.index(b'{', match.start()) + 1
@@ -322,14 +323,37 @@ def patch_agent_launch_source(source, effort_module):
         rb'if\(!\2&&(' + IDENT + rb')!==void 0\)\4=\{\.\.\.\4,effort:\5\};'
     )
     natives = list(native.finditer(source, start.end()))
+    # 2.1.325 resolves an inherited agent definition before the final model.
+    # Preserve that native decision and bind our effort only after it completes.
+    inherited = re.compile(
+        rb'let (' + IDENT + rb')=(' + IDENT + rb')\?"inherit":' + IDENT +
+        rb',(' + IDENT + rb')=(' + IDENT + rb')\|\|(' + IDENT +
+        rb')\.spawnedByWorkflowRunId!==void 0\?void 0:' + IDENT + rb'\((' + IDENT +
+        rb'),\{parentModel:' + IDENT + rb'\(\5\),callModel:\1,effortState:\5\.getAppState\(\),'
+        rb'inheritedLayers:\5\.permissionLayers,isResume:!1\}\);\6=\3\?\.definition\?\?\6;'
+        rb'let (' + IDENT + rb')=' + IDENT + rb'\(' + IDENT + rb'\(\6,' + IDENT +
+        rb'\),' + IDENT + rb',\1,' + IDENT + rb'\);'
+        rb'if\(!\2&&(' + IDENT + rb')!==void 0\)\6=\{\.\.\.\6,effort:\8\};'
+    )
+    inherited_sites = list(inherited.finditer(source, start.end()))
+    require(not (natives and inherited_sites), 'Native Agent effort handoff is ambiguous')
+    if inherited_sites:
+        require(len(inherited_sites) == 1, 'Native Agent inheritance handoff is ambiguous')
+        natives = inherited_sites
     if natives:
         require(len(natives) == 1, 'Native Agent effort handoff is ambiguous')
         end = natives[0]
-        alias, fork, model, definition, absolute = (end[i] for i in range(1, 6))
+        if inherited_sites:
+            alias, fork, model, definition, absolute = (end[i] for i in (1, 2, 7, 6, 8))
+            require(end[5] == start[2], 'Agent inheritance context changed')
+        else:
+            alias, fork, model, definition, absolute = (end[i] for i in range(1, 6))
         context, input_name = start[2], start[1]
         remote = re.findall(rb'\{effectiveIsolation:' + IDENT + rb',isRemoteLaunch:(' + IDENT +
                             rb'),shouldRunAsync:' + IDENT + rb'\}=', source[start.end():end.start()])
         require(remote and len(set(remote)) == 1, 'Agent remote launch guard changed')
+        if inherited_sites:
+            require(end[4] == remote[0], 'Agent inheritance remote guard changed')
         # Verify native budget/permission-layer resolution and final definition
         # handoff still follow this site before touching it.
         budget = (re.escape(b'({agentDefinition:' + definition + b',isFork:' + fork + b',model:' + model +
@@ -363,7 +387,7 @@ def patch_agent_launch_source(source, effort_module):
                      b'=globalThis.__cmaHybridEffort.apply(' + definition + b',' + absolute +
                      b',' + model + b',' + fork + b'||' + remote[0] + b');' +
                      absolute + b'=' + definition + b'.effort;}}')
-        pos = source.index(b';', end.start()) + 1
+        pos = source.rindex(b';if(!', end.start(), end.end()) + 1
         source = source[:pos] + insertion + source[pos:]
         pos = start.end()
         source = source[:pos] + input_name + b'=globalThis.__cmaHybridEffort.input(' + input_name + b');' + source[pos:]
