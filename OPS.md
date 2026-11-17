@@ -122,6 +122,30 @@ the existing structural checks remain intact. The 36-launch fake-API test,
 handler signatures, including foreground/background effort persistence and
 rejection of unknown parameters. No live provider/RC/resume test was performed.
 
+### Stable primary GPT aliases (2026-11-18)
+
+Primary Codex choices are `claude/gpt-sol` and `claude/gpt-astra`, currently
+targeting GPT 6.2 Sol/Astra. The backup choices keep their previous explicit
+Sol 6.1/Astra 6 names and targets. Each primary alias target is stored in
+`$CMA_HOME/config.json` under `subscription_aliases`; change that mapping and
+run `cma up` for a future upgrade. The proxy and primary worker reload their
+routes, while the unchanged exposed names keep the same client-cache identity.
+Existing states acquire the default mapping on their next render. No login
+or credential replacement is part of a model upgrade.
+
+The primary worker retains its earlier versions and adds the configured alias
+targets; the backup worker receives no 6.2 models. Targets must remain versioned
+Sol/Astra IDs on the same subscription path. The Responses compatibility hook
+recognizes both stable names and future versioned family IDs so tool-stop/usage
+handling survives a target change. Preserve vision, no forced effort, no paid
+fallback and the 272k advertised input cap when reviewing future targets.
+
+Tests cover retargeting to a synthetic 6.3 model without changing the client
+roster, unchanged backup routes, the pinned 1.104 bridge and actual patched
+Claude 2.1.325 Agent schema/effort and inline-tool recovery. No provider
+generation or logins were used. Relaunch once after installing this release to
+switch from the previous versioned primary names to these stable aliases.
+
 ### Fable 5.2 and Claude Code 2.1.325 (2026-11-14)
 
 The native `fable` alias followed Fable 5.1 in Claude Code 2.1.319. Anthropic

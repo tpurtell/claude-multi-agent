@@ -9,12 +9,12 @@ This plugin injects this core at session start, resume and compaction. A skill's
 description alone is only discoverability, not guaranteed loading or obedience.
 
 1. Inspect the actual Agent tool schema. Enhanced clients list
-   `claude/chatgpt/...` and expose per-launch `effort`. Plain Claude clients do
+   `claude/gpt-sol`, `claude/gpt-astra` and expose per-launch `effort`. Plain Claude clients do
    not gain these fields from a skill or model picker; use direct Codex fallback.
 2. Choose one owner per bounded task. Give concurrent editors separate worktrees
    and branches, a base revision, explicit files, constraints, test gates and a
    report path. Coordinate shared ports, GPUs, caches and deployment targets.
-3. Use Sol 6.1 for bounded implementation/investigation; Astra for fresh insight
+3. Use GPT Sol for bounded implementation/investigation; GPT Astra for fresh insight
    or harder reasoning; DeepSeek for easily checked structural work. Claude owns
    planning, policy/default decisions, integration and independent review.
    MiMo is an optional last resort. Native Claude aliases depend on account access.

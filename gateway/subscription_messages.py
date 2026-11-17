@@ -7,6 +7,7 @@ This scopes bridge fixes to Astra/Sol and system-role conversion to the ChatGPT
 provider; native Anthropic is untouched.
 """
 from types import SimpleNamespace
+import re
 
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.llms.anthropic.experimental_pass_through.responses_adapters.streaming_iterator import AnthropicResponsesStreamWrapper
@@ -15,7 +16,10 @@ from litellm.llms.chatgpt.responses.transformation import ChatGPTResponsesAPICon
 
 
 def applies(model):
-    return model.rsplit('/', 1)[-1] in ('gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-astra-backup', 'gpt-6.1-sol-backup')
+    # Match stable aliases and versioned Sol/Astra upstreams so retargeting an
+    # alias retains tool-stop/usage handling without another callback update.
+    return re.fullmatch(r'gpt-(?:\d+(?:\.\d+)*-)?(?:sol|astra)(?:-backup)?',
+                        model.rsplit('/', 1)[-1]) is not None
 
 
 def install():

@@ -43,8 +43,8 @@ NATIVE_AGENT_EFFORT = re.compile(
 # Intentionally explicit: these are the six reviewed ClaudeHybrid agent routes.
 # Keep aligned with litellm/claude-hybrid.json when changing this key's models.
 SUBAGENT_MODELS = (
-    'claude/chatgpt/gpt-6.1-sol',
-    'claude/chatgpt/gpt-6-astra',
+    'claude/gpt-sol',
+    'claude/gpt-astra',
     'claude/chatgpt/gpt-6.1-sol-backup',
     'claude/chatgpt/gpt-6-astra-backup',
     'claude/deepseek/deepseek-flash',
@@ -86,7 +86,7 @@ MODEL_EFFORTS = {model: (('low', 'high', 'max') if '/deepseek/' in model else
                  for model in SUBAGENT_MODELS}
 EFFORT_DESCRIPTION = (
     'Per-launch reasoning effort. Omit, null or "default" preserves normal '
-    'agent/session defaults (not a forced provider reset). Sol 6.1 and Astra, '
+    'agent/session defaults (not a forced provider reset). GPT Sol and Astra aliases, '
     'including backup: low/medium/high/xhigh/max. DeepSeek Flash: low/high/max '
     '(medium maps to high; xhigh maps to max, not distinct levels). MiMo: default/null '
     'only; graded effort is not supported. Native Claude uses installed client '

@@ -9,6 +9,22 @@ from litellm.llms.chatgpt.responses.transformation import ChatGPTResponsesAPICon
 
 
 class SubscriptionMessagesTests(unittest.TestCase):
+    def test_stable_and_future_alias_targets_keep_tool_usage_and_role_bridge(self):
+        for model in ('gpt-6.2-sol', 'gpt-6.2-astra', 'claude/gpt-sol',
+                      'claude/gpt-astra', 'gpt-6.3-sol', 'gpt-6.3-astra'):
+            with self.subTest(model=model):
+                self.assertTrue(subscription_messages.applies(model))
+                result = ChatGPTResponsesAPIConfig().transform_responses_api_request(
+                    model.rsplit('/', 1)[-1], [{'role': 'system', 'content': 'test'}], {}, {}, {})
+                self.assertEqual(result['input'][0]['role'], 'developer')
+                wrapper = AnthropicResponsesStreamWrapper(None, model)
+                self.tool(wrapper)
+                result = self.completed(wrapper)
+                self.assertEqual(result['delta']['stop_reason'], 'tool_use')
+                self.assertEqual(result['usage']['input_tokens'], 7)
+        for model in ('claude-opus-5-5', 'gpt-not-sol', 'gpt-6.2-terra', 'gpt-sol-other'):
+            self.assertFalse(subscription_messages.applies(model))
+
     def test_subscription_system_is_developer_without_mutating_input(self):
         original = [{'role': 'system', 'content': 'Claude Code system prompt'},
                     {'role': 'user', 'content': 'test'}]

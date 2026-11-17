@@ -6,9 +6,9 @@ DeepSeek/MiMo appear only when their corresponding provider keys are configured.
 
 | ID | Role | Suggested effort | Allowed explicit effort |
 | --- | --- | --- | --- |
-| `claude/chatgpt/gpt-6.1-sol` | Bounded engineering | high; xhigh for subtle work | low, medium, high, xhigh, max |
+| `claude/gpt-sol` | Bounded engineering; primary, currently Sol 6.2 | high; xhigh for subtle work | low, medium, high, xhigh, max |
 | `claude/chatgpt/gpt-6.1-sol-backup` | Same, second Codex subscription | high/xhigh | same |
-| `claude/chatgpt/gpt-6-astra` | Difficult design, independent insight | medium/high | low, medium, high, xhigh, max |
+| `claude/gpt-astra` | Difficult design, independent insight; primary, currently Astra 6.2 | medium/high | low, medium, high, xhigh, max |
 | `claude/chatgpt/gpt-6-astra-backup` | Same, second Codex subscription | medium/high | same |
 | `claude/deepseek/deepseek-flash` | Mechanical refactors, digests, simple scripts | high; max for larger sweeps | low, high, max; medium→high, xhigh→max |
 | `claude/xiaomi/mimo-v2.6-pro` | Optional fallback through OpenRouter | default | omit, null, default only |
@@ -25,6 +25,12 @@ explicit fork effort. Named teammates and gateway remote/cloud agent launches
 do not support this override. Gateway settings/policy/forced-environment conflicts
 fail explicitly instead of silently downgrading effort; native Claude keeps its
 own resolution behavior.
+
+Primary GPT aliases keep the same Agent model IDs when upgraded. Their upstream
+targets live in the instance's private `subscription_aliases` configuration;
+retarget/reload the gateway rather than changing the client's finite roster.
+The Agent effort interface exposes the five levels above; the 6.2 subscription
+catalog's separate `ultra` delegation mode is not exposed by this patch.
 
 Claude Code 2.1.292+ has native per-invocation Agent effort. The patch extends
 that existing schema and retains native launch/background/resume persistence,

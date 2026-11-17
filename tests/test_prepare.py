@@ -140,7 +140,7 @@ class PatchTests(unittest.TestCase):
             self.run_effort('''const original={};
               assert.equal(globalThis.__cmaHybridEffort.apply(original,'garbage','haiku',true),original);
               assert.equal(supports('haiku'),false);
-              assert.equal(max('claude/chatgpt/gpt-6-astra'),false);
+              assert.equal(max('claude/gpt-astra'),false);
               globalThis.__cmaHybridEffort.checkKind({name:'x',effort:'max'});
             ''', host=host, enabled=enabled)
 
@@ -213,7 +213,7 @@ class PatchTests(unittest.TestCase):
             b'function supports(e){let canonical=normalize(e);if(disabled(canonical))return!1;let n=override(canonical,"effort");'
         ).replace(b'carriedEffort:d=carry(e)', b'carriedEffort:d=carry(normalize(e))')
         self.run_effort("""
-          assert.equal(supports('claude/chatgpt/gpt-6.1-sol'),true);
+          assert.equal(supports('claude/gpt-sol'),true);
           assert.equal(effort('claude/deepseek/deepseek-flash','max'),'max');
           assert.equal(supports('haiku'),false);
           cap=true;assert.equal(effort('claude/deepseek/deepseek-flash','max'),'high');
@@ -288,7 +288,7 @@ class PatchTests(unittest.TestCase):
                 assert.equal(result.background,background);
               }
             }
-            const model='claude/chatgpt/gpt-6.1-sol';
+            const model='claude/gpt-sol';
             for(const value of [undefined,null,'default']){
               const result=await run({model,effort:value});
               assert.equal(result.agentDefinition.effort,'high');assert.equal(result.wireEffort,undefined);

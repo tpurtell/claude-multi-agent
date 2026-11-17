@@ -19,7 +19,7 @@ class EffortTests(unittest.TestCase):
         cls.original_cost = copy.deepcopy(litellm.model_cost)
         cls.auth = patch.object(Authenticator, 'get_access_token', return_value='offline-test')
         cls.auth.start()
-        cls.routes = cma.worker_routes('offline-worker')
+        cls.routes = cma.worker_routes('chatgpt1', cma.PROFILE['subscription_aliases'])
         cls.router = litellm.Router(model_list=cls.routes)
 
     @classmethod

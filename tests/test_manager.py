@@ -92,6 +92,28 @@ class ManagerTests(unittest.TestCase):
         with patch.object(cma.urllib.request, 'urlopen', return_value=response), self.assertRaises(ValueError):
             cma.catalog()
 
+    def test_primary_alias_retarget_keeps_client_roster_and_backup_routes(self):
+        self.init()
+        cfg = cma.config()
+        before = list(cfg['models'])
+        cfg['authorized_workers'] = ['chatgpt1', 'chatgpt2']
+        cfg['subscription_aliases']['claude/gpt-sol'] = 'gpt-6.3-sol'
+        cma.write_private(self.home / 'config.json', cfg)
+        cma.render()
+        self.assertEqual(cma.config()['models'], before)
+        routes = {r['model_name']: r for r in json.loads((self.home / 'proxy.yaml').read_text())['model_list']}
+        self.assertEqual(routes['claude/gpt-sol']['litellm_params']['model'], 'openai/gpt-6.3-sol')
+        self.assertEqual(routes['claude/gpt-astra']['litellm_params']['model'], 'openai/gpt-6.2-astra')
+        self.assertEqual(routes['claude/chatgpt/gpt-6.1-sol-backup']['litellm_params']['model'], 'openai/gpt-6.1-sol')
+        primary = json.loads((self.home / 'chatgpt1.yaml').read_text())['model_list']
+        backup = json.loads((self.home / 'chatgpt2.yaml').read_text())['model_list']
+        self.assertIn('gpt-6.3-sol', [r['model_name'] for r in primary])
+        self.assertEqual([r['model_name'] for r in backup], ['gpt-6.1-sol', 'gpt-6-astra'])
+        cfg['subscription_aliases']['claude/gpt-sol'] = 'openai/gpt-6.2-sol'
+        cma.write_private(self.home / 'config.json', cfg)
+        with self.assertRaises(ValueError):
+            cma.render()
+
     def test_state_and_secret_guardrails(self):
         self.init()
         target = self.home / 'target'; target.write_text('unchanged')
@@ -155,7 +177,9 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(json.loads((self.home / (worker + '.yaml')).read_text())['model_list'], [])
         cfg = cma.config(); cfg['authorized_workers'] = ['chatgpt1']
         cma.write_private(self.home / 'config.json', cfg); cma.render()
-        self.assertEqual(len(json.loads((self.home / 'chatgpt1.yaml').read_text())['model_list']), 2)
+        primary = json.loads((self.home / 'chatgpt1.yaml').read_text())['model_list']
+        self.assertEqual({r['model_name'] for r in primary},
+                         {'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.2-sol', 'gpt-6.2-astra'})
         self.assertEqual(json.loads((self.home / 'chatgpt2.yaml').read_text())['model_list'], [])
         with patch.object(cma, 'compose') as call:
             cma.start_stack()

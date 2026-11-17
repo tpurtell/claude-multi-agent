@@ -12,8 +12,12 @@
     "claude-haiku-4-5": "claude-haiku-4-5-20251001",
     "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
   },
+  "subscription_aliases": {
+    "claude/gpt-sol": "gpt-6.2-sol",
+    "claude/gpt-astra": "gpt-6.2-astra"
+  },
   "other_models": [
-    "claude/chatgpt/gpt-6.1-sol", "claude/chatgpt/gpt-6-astra",
+    "claude/gpt-sol", "claude/gpt-astra",
     "claude/chatgpt/gpt-6.1-sol-backup", "claude/chatgpt/gpt-6-astra-backup",
     "claude/deepseek/deepseek-flash", "claude/xiaomi/mimo-v2.6-pro"
   ],

@@ -136,8 +136,8 @@ stay built in, while the gateway lists only these configured extras:
 
 | Gateway ID | Source |
 | --- | --- |
-| `claude/chatgpt/gpt-6.1-sol` | Codex subscription 1 |
-| `claude/chatgpt/gpt-6-astra` | Codex subscription 1 |
+| `claude/gpt-sol` | Codex subscription 1; currently GPT 6.2 Sol |
+| `claude/gpt-astra` | Codex subscription 1; currently GPT 6.2 Astra |
 | `claude/chatgpt/gpt-6.1-sol-backup` | Codex subscription 2 |
 | `claude/chatgpt/gpt-6-astra-backup` | Codex subscription 2 |
 | `claude/deepseek/deepseek-flash` | Optional official API |
@@ -148,6 +148,11 @@ medium→high and xhigh→max); MiMo default
 only. No forced gateway effort. See the [model guide](skills/agent-orchestration/references/models.md).
 Codex advertises 272k input/128k output, though unfamiliar IDs can still use
 Claude's conservative internal context budget.
+
+Primary aliases are stable across model upgrades. Change `subscription_aliases`
+in the instance's private `config.json`, then run `cma up` to render/reload its
+proxy and worker routes. Keeping the exposed alias names unchanged preserves
+the client cache and Agent schema. Backup routes retain their explicit versions.
 
 Native Anthropic IDs/aliases remain permitted but hidden from gateway listings,
 avoiding duplicates. `cma refresh-native` fetches the account's current catalog;
@@ -174,7 +179,7 @@ must allow the model. Disable with `cma provider NAME --disable` then cma up.
 ### 6. Explicit live verification
 
 ```bash
-cma smoke --model claude/chatgpt/gpt-6.1-sol --effort high --allow-spend
+cma smoke --model claude/gpt-sol --effort high --allow-spend
 cma smoke --model claude/chatgpt/gpt-6-astra-backup --effort xhigh --allow-spend
 cma smoke --model claude-sonnet-5-5 --allow-spend
 ```

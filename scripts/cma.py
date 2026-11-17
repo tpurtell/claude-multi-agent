@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shlex
@@ -110,16 +111,29 @@ def enabled_models(accounts, values):
         and ('/xiaomi/' not in model or values.get('OPENROUTER_API_KEY'))]
 
 
-def worker_routes(worker):
+def subscription_aliases(cfg):
+    aliases = cfg.setdefault('subscription_aliases', dict(PROFILE['subscription_aliases']))
+    if set(aliases) != {'claude/gpt-sol', 'claude/gpt-astra'}:
+        raise ValueError('Expected both stable primary subscription aliases')
+    for name, model in aliases.items():
+        if not re.fullmatch(r'gpt-\d+(?:\.\d+)*-' + name.removeprefix('claude/gpt-'), model):
+            raise ValueError('Invalid primary subscription alias target: ' + name)
+    return aliases
+
+
+def worker_routes(worker, aliases):
+    models = list(dict.fromkeys(('gpt-6.1-sol', 'gpt-6-astra',
+                                *(aliases.values() if worker == 'chatgpt1' else ()))))
     return [{'model_name': model, 'litellm_params': {
         'model': 'chatgpt/' + model, 'timeout': 900, 'num_retries': 0,
         'allowed_openai_params': ['reasoning_effort'], 'input_cost_per_token': 0,
         'output_cost_per_token': 0}, 'model_info': subscription_info(worker + '-' + model)}
-        for model in ('gpt-6.1-sol', 'gpt-6-astra')]
+        for model in models]
 
 
 def render():
     home, cfg = state_dir(), config()
+    aliases = subscription_aliases(cfg)
     values = env_secrets()
     cfg['models'] = enabled_models(cfg['accounts'], values)
     write_private(home / 'config.json', cfg)
@@ -130,8 +144,8 @@ def render():
         for model in cfg['anthropic_model_ids']]
     routes = list(native)
     for name in cfg['models']:
-        if '/chatgpt/' in name:
-            model = name.rsplit('/', 1)[-1].removesuffix('-backup')
+        if name in aliases or '/chatgpt/' in name:
+            model = aliases.get(name, name.rsplit('/', 1)[-1].removesuffix('-backup'))
             worker = 'chatgpt2' if name.endswith('-backup') else 'chatgpt1'
             routes.append({'model_name': name, 'litellm_params': {'model': 'openai/' + model,
                 'api_base': 'http://' + worker + ':4000/v1', 'api_key': 'os.environ/CMA_WORKER_KEY',
@@ -181,7 +195,7 @@ def render():
         # LiteLLM eagerly authenticates ChatGPT while constructing its router.
         # Start an empty, healthy worker before human login; activate its real
         # deployments only after the explicit one-off device flow succeeds.
-        worker_config = {'model_list': worker_routes(worker)
+        worker_config = {'model_list': worker_routes(worker, aliases)
                          if worker in cfg.get('authorized_workers', []) else [],
             'general_settings': {'master_key': 'os.environ/LITELLM_MASTER_KEY'},
             'litellm_settings': {'callbacks': ['subscription_messages.callback']}}
